@@ -1,0 +1,45 @@
+# FRIDAY local artifacts
+_devlog*.txt
+data/
+
+# Environment and Secrets (CRITICAL)
+.env
+.env.*
+*.env
+!.env.example
+
+# Dependencies
+node_modules/
+.pnp
+.pnp.js
+
+# Production build & temporary files
+dist/
+dist-ssr/
+*.local
+test-*.js
+check.js
+launch.vbs
+*.log
+
+# Logs
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+lerna-debug.log*
+
+# Editor directories and files
+.vscode/*
+!.vscode/extensions.json
+.idea
+.DS_Store
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.sw?
+
+# ZCode local tooling
+.zcode/
+.zcodeignore

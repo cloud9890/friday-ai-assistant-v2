@@ -1,0 +1,24 @@
+{
+  "name": "friday-ai-assistant",
+  "private": true,
+  "version": "1.0.0",
+  "type": "module",
+  "description": "F.R.I.D.A.Y. Stark Tactical HUD - UI/UX-only front-end build.",
+  "scripts": {
+    "dev": "vite --port 5173",
+    "build": "vite build",
+    "preview": "vite preview",
+    "test": "node --test test/"
+  },
+  "dependencies": {
+    "docx": "^8.5.0",
+    "puppeteer": "^24.43.1"
+  },
+  "devDependencies": {
+    "vite": "^5.2.0"
+  },
+  "allowScripts": {
+    "esbuild": true,
+    "puppeteer@24.43.1": true
+  }
+}

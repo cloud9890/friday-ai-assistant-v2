@@ -1,0 +1,334 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>F.R.I.D.A.Y. // Stark Tactical AI Assistant</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;600;800;900&family=Rajdhani:wght@400;500;600;700&family=Share+Tech+Mono&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="style.css">
+</head>
+<body class="stark-theme">
+
+  <!-- Background Cyber HUD Grid Overlay -->
+  <div class="hud-overlay">
+    <div class="scanlines"></div>
+    <div class="vignette"></div>
+    <div class="grid-background"></div>
+  </div>
+
+  <!-- Top Navigation & HUD Bar -->
+  <header class="hud-header">
+    <div class="header-energy-strip"></div>
+    <span class="header-corner tl"></span>
+    <span class="header-corner tr"></span>
+
+    <div class="header-left">
+      <div class="stark-logo">
+        <span class="stark-chip">
+          <svg viewBox="0 0 100 24" width="60" height="15" class="stark-brand-icon">
+            <polygon points="5,2 25,2 20,22 0,22" fill="#00f0ff" opacity="0.9"/>
+            <text x="30" y="17" font-family="'Orbitron', sans-serif" font-weight="900" font-size="14" fill="#ffffff" letter-spacing="2">STARK</text>
+          </svg>
+        </span>
+        <span class="sub-brand">INDUSTRIES // OS v4.82</span>
+      </div>
+
+      <div class="hud-badge status-online" id="statusBadge">
+        <span class="status-dot"></span>
+        <span id="statusText">SYSTEM BOOTING...</span>
+      </div>
+    </div>
+
+    <div class="header-center">
+      <span class="title-rule left"></span>
+      <div class="hud-title-wrap">
+        <h1 class="hud-title">F.R.I.D.A.Y.</h1>
+        <span class="hud-subtitle"><i class="node-dot"></i>TACTICAL AI ASSISTANT SYSTEM<i class="node-dot"></i></span>
+      </div>
+      <span class="title-rule right"></span>
+    </div>
+
+    <div class="header-right">
+      <div class="time-widget">
+        <span class="time-label">LOCAL TIME</span>
+        <span class="time-val" id="clockDisplay">00:00:00</span>
+      </div>
+
+      <div class="header-controls">
+        <button id="btnToggleSound" class="icon-btn active" title="Toggle Sound FX">
+          <svg viewBox="0 0 24 24" width="18" height="18" stroke="currentColor" fill="none" stroke-width="2">
+            <polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"></polygon>
+            <path d="M19.07 4.93a10 10 0 0 1 0 14.14M15.54 8.46a5 5 0 0 1 0 7.07"></path>
+          </svg>
+        </button>
+
+        <button id="btnToggleVoice" class="icon-btn active" title="Toggle Voice Output">
+          <svg viewBox="0 0 24 24" width="18" height="18" stroke="currentColor" fill="none" stroke-width="2">
+            <path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"></path>
+            <path d="M19 10v2a7 7 0 0 1-14 0v-2"></path>
+            <line x1="12" y1="19" x2="12" y2="23"></line>
+            <line x1="8" y1="23" x2="16" y2="23"></line>
+          </svg>
+        </button>
+
+        <button id="btnToggleScreen" class="icon-btn" title="Share screen with F.R.I.D.A.Y. (lets her see and analyse your display)">
+          <svg viewBox="0 0 24 24" width="18" height="18" stroke="currentColor" fill="none" stroke-width="2">
+            <rect x="2" y="3" width="20" height="14" rx="2"></rect>
+            <line x1="8" y1="21" x2="16" y2="21"></line>
+            <line x1="12" y1="17" x2="12" y2="21"></line>
+          </svg>
+        </button>
+      </div>
+    </div>
+  </header>
+
+  <!-- Main HUD Layout Grid -->
+  <main class="hud-main-grid">
+
+    <!-- LEFT PANEL: System Power & Environment -->
+    <aside class="hud-panel left-panel">
+
+      <!-- System Power & Compute (real browser/device signals) -->
+      <section class="stark-card suit-card">
+        <div class="card-header">
+          <span class="card-icon">⚡</span>
+          <h2>SYSTEM POWER &amp; COMPUTE</h2>
+          <span class="card-tag">REAL-TIME</span>
+        </div>
+        <div class="card-body">
+          <div class="suit-stat-readout">
+            <div class="stat-row">
+              <span class="stat-name">BATTERY LEVEL</span>
+              <span class="stat-value cyan" id="batteryVal">N/A</span>
+            </div>
+            <div class="meter-bar"><div class="meter-fill cyan" id="batteryBar" style="width: 0%;"></div></div>
+
+            <div class="stat-row">
+              <span class="stat-name">POWER STATE</span>
+              <span class="stat-value gold" id="chargeStateVal">UNKNOWN</span>
+            </div>
+
+            <div class="stat-row">
+              <span class="stat-name">DEVICE MEMORY</span>
+              <span class="stat-value blue" id="deviceMemVal">N/A</span>
+            </div>
+
+            <div class="stat-row">
+              <span class="stat-name">LOGICAL CORES</span>
+              <span class="stat-value cyan" id="coresVal">N/A</span>
+            </div>
+          </div>
+        </div>
+      </section>
+<!-- Network & Environment -->
+      <section class="stark-card scanner-card">
+        <div class="card-header">
+          <span class="card-icon">🌐</span>
+          <h2>NETWORK &amp; ENVIRONMENT</h2>
+          <span class="card-tag">LIVE</span>
+        </div>
+        <div class="card-body">
+          <div class="scanner-grid">
+            <div class="scan-item">
+              <span class="scan-label">LOCATION</span>
+              <span class="scan-val" id="scanLoc">REQUESTING...</span>
+            </div>
+            <div class="scan-item">
+              <span class="scan-label">NETWORK TYPE</span>
+              <span class="scan-val" id="scanNetType">—</span>
+            </div>
+            <div class="scan-item">
+              <span class="scan-label">DOWNLINK</span>
+              <span class="scan-val" id="scanDownlink">—</span>
+            </div>
+            <div class="scan-item">
+              <span class="scan-label">ROUND-TRIP</span>
+              <span class="scan-val green" id="scanRtt">—</span>
+            </div>
+          </div>
+        </div>
+      </section>
+
+    </aside>
+
+    <!-- CENTER PANEL: Arc Reactor Visualizer & Core Chat -->
+    <section class="hud-panel center-panel">
+
+      <div class="arc-reactor-container">
+        <div class="orbital-ring ring-outer"></div>
+        <div class="orbital-ring ring-mid"></div>
+        <div class="orbital-ring ring-inner"></div>
+
+        <canvas id="arcCanvas" width="220" height="220"></canvas>
+
+        <div class="reactor-center-info">
+          <span class="reactor-title">F.R.I.D.A.Y.</span>
+          <span class="reactor-state" id="reactorState">STANDBY</span>
+        </div>
+      </div>
+
+      <div class="voice-status-banner" id="voiceBanner">
+        <div class="voice-indicator-pulsar" id="voicePulsar"></div>
+        <span id="voiceBannerText">Wake word active — say 'Friday' followed by your command, Boss.</span>
+      </div>
+
+      <div class="stark-card terminal-card">
+        <div class="card-header">
+          <span class="card-icon">💬</span>
+          <h2>COMMUNICATION STREAM</h2>
+          <span class="card-tag">ENCRYPTED</span>
+        </div>
+
+        <div class="card-body terminal-body" id="chatStream">
+          <div class="chat-msg msg-friday">
+            <div class="msg-author">F.R.I.D.A.Y.</div>
+            <div class="msg-content">Interface initialised. Establishing neural link...</div>
+            <div class="msg-time">SYSTEM BOOT</div>
+          </div>
+        </div>
+
+        <div class="spectrum-bar-wrap">
+          <span class="spectrum-cap left"></span>
+          <div class="spectrum-stage">
+            <span class="spectrum-label">AUDIO SPECTRUM // LIVE</span>
+            <canvas id="spectrumCanvas" width="600" height="44"></canvas>
+          </div>
+          <span class="spectrum-cap right"></span>
+        </div>
+
+        <div class="command-dock">
+          <input type="text" id="cmdInput" class="cmd-input" placeholder="Say 'Friday...' or type a command for F.R.I.D.A.Y." autocomplete="off"/>
+
+          <button id="btnSend" class="send-btn">
+            <span>EXECUTE</span>
+            <svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor">
+              <path d="M2.01 21L23 12 2.01 3 2 10l15 2-15 2z"/>
+            </svg>
+          </button>
+        </div>
+
+        <div class="quick-commands">
+          <button class="quick-chip" data-cmd="Friday, run a full system diagnostic">Run Diagnostic</button>
+          <button class="quick-chip" data-cmd="Friday, what is my battery level?">Battery</button>
+          <button class="quick-chip" data-cmd="Friday, summarise the current system status">System Status</button>
+          <button class="quick-chip" data-cmd="Friday, what can you do?">Capabilities</button>
+          <button class="quick-chip" data-cmd="Friday, what is the current time?">Time</button>
+        </div>
+      </div>
+    </section>
+<!-- RIGHT PANEL: Systems Diagnostics & Directives -->
+    <aside class="hud-panel right-panel">
+
+      <section class="stark-card diag-card">
+        <div class="card-header">
+          <span class="card-icon">🖥️</span>
+          <h2>SYSTEM DIAGNOSTICS</h2>
+          <span class="card-tag">REAL-TIME</span>
+        </div>
+        <div class="card-body">
+          <div class="diag-meter-group">
+            <div class="diag-item">
+              <div class="diag-lbl">
+                <span>JS HEAP USAGE</span>
+                <span class="val" id="heapVal">N/A</span>
+              </div>
+              <div class="meter-bar"><div class="meter-fill cyan" id="heapBar" style="width: 0%;"></div></div>
+            </div>
+
+            <div class="diag-item">
+              <div class="diag-lbl">
+                <span>NEURAL LINK LATENCY</span>
+                <span class="val green" id="pingVal">— ms</span>
+              </div>
+              <div class="meter-bar"><div class="meter-fill green" id="pingBar" style="width: 0%;"></div></div>
+            </div>
+
+            <div class="diag-item">
+              <div class="diag-lbl">
+                <span>NEURAL LINK STATUS</span>
+                <span class="val gold" id="linkVal">CHECKING...</span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section class="stark-card directives-card">
+        <div class="card-header">
+          <span class="card-icon">📋</span>
+          <h2>DIRECTIVES &amp; TASK LOG</h2>
+          <span class="card-tag" id="directiveCount">0 ACTIVE</span>
+        </div>
+        <div class="card-body">
+          <div class="directive-input-wrap">
+            <input type="text" id="directiveInput" placeholder="Add a directive..."/>
+            <button id="btnAddDirective">+</button>
+          </div>
+          <ul class="directive-list" id="directiveList"></ul>
+        </div>
+      </section>
+
+      <section class="stark-card protocols-card">
+        <div class="card-header">
+          <span class="card-icon">🛠️</span>
+          <h2>SYSTEM CHECKS</h2>
+          <span class="card-tag">ON DEMAND</span>
+        </div>
+        <div class="card-body">
+          <div class="protocol-grid">
+            <button class="protocol-btn" id="btnRunDiagnostics" style="grid-column: 1 / -1;">
+              <span class="p-code">SCAN</span>
+              <span class="p-name">RUN FULL DIAGNOSTIC</span>
+            </button>
+          </div>
+        </div>
+      </section>
+
+    </aside>
+  </main>
+
+  <!-- Footer HUD Bar -->
+  <footer class="hud-footer">
+    <div class="footer-item">STARK AI ARCHITECTURE // F.R.I.D.A.Y. CORE</div>
+    <div class="footer-item ticker-wrap">
+      <span class="ticker-label">LIVE TICKER:</span>
+      <span class="ticker-text" id="tickerText">Booting...</span>
+    </div>
+    <div class="footer-item" id="footerStatus">STATUS: —</div>
+  </footer>
+
+  <!-- Diagnostic / Check Overlay -->
+  <div class="protocol-overlay" id="protocolOverlay">
+    <div class="protocol-content">
+      <span class="report-corner tl"></span>
+      <span class="report-corner tr"></span>
+      <span class="report-corner bl"></span>
+      <span class="report-corner br"></span>
+
+      <header class="protocol-head">
+        <span class="protocol-status-ring" id="protocolOverlayIcon"></span>
+        <div class="protocol-head-text">
+          <span class="protocol-kicker">SYSTEM REPORT</span>
+          <h1 id="protocolOverlayTitle">SYSTEM DIAGNOSTIC</h1>
+        </div>
+      </header>
+
+      <div class="protocol-rule"></div>
+
+      <ul class="protocol-report" id="protocolOverlayDesc">
+        <li class="report-row info"><span class="r-label">STATUS</span><span class="r-value">Running checks…</span></li>
+      </ul>
+
+      <div class="protocol-spinner"></div>
+
+      <button class="protocol-dismiss" id="btnDismissProtocol">DISMISS</button>
+    </div>
+  </div>
+
+  <script type="module" src="app.js"></script>
+</body>
+</html>
+</body>
+</html>
