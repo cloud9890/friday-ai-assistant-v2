@@ -180,71 +180,72 @@ export class HologramVisualizer {
 
     const midY = h / 2;
     const cx = w / 2;
-    const maxBar = h * 0.4;
     const dpr = window.devicePixelRatio || 1;
+    const t = Date.now() / 1000;
 
-    // The graph radiates from the middle: low frequencies sit at the centre
-    // and the spectrum mirrors outward to both edges.
+    /* Real voice energy: average of the voice-relevant low/mid bins, eased
+       with a fast attack and slow release so the wave swells when Boss talks
+       and decays gracefully afterwards. */
+    let energy = 0;
+    for (let i = 1; i < len / 2; i++) energy += freqData[i];
+    energy = energy / (len / 2) / 255;
+    if (this._level === undefined) this._level = 0;
+    this._level = Math.max(energy, this._level * 0.94);
+    const level = this._level;
+
+    // --- Layer 1: slim mirrored frequency bars, radiating from the centre ---
     const halfLen = Math.ceil(len / 2);
     const slot = (w / 2) / halfLen;
-    const barW = Math.max(2 * dpr, slot * 0.45);
+    const barW = Math.max(2 * dpr, slot * 0.4);
+    const maxBar = h * 0.32;
 
-    // Slow-falling peak caps, one per frequency bin (shared by both mirrors).
-    if (!this._peaks || this._peaks.length !== halfLen) {
-      this._peaks = new Array(halfLen).fill(0);
-    }
-
-    // 1. Mirrored equalizer bars: up/down around the centre line and
-    //    left/right around the centre point.
+    ctx.fillStyle = `rgba(${rgb}, 0.18)`;
     for (let i = 0; i < halfLen; i++) {
-      const level = freqData[i] / 255;
-      const barH = Math.max(2, level * maxBar);
+      const barH = Math.max(2 * dpr, (freqData[i] / 255) * maxBar);
       const xOff = i * slot + (slot - barW) / 2;
-      const peak = this._peaks[i];
-      this._peaks[i] = Math.max(barH, peak - maxBar * 0.022);
-
       for (const x of [cx + xOff, cx - xOff - barW]) {
-        const grad = ctx.createLinearGradient(0, midY - barH, 0, midY + barH);
-        grad.addColorStop(0, `rgba(${rgb}, 0.95)`);
-        grad.addColorStop(0.5, `rgba(${rgb}, 0.5)`);
-        grad.addColorStop(1, `rgba(${rgb}, 0.95)`);
-        ctx.fillStyle = grad;
-        ctx.fillRect(x, midY - barH, barW, barH * 2);
-
-        // Peak caps ride just beyond the current bar height.
-        ctx.fillStyle = `rgba(${rgb}, 0.9)`;
-        ctx.fillRect(x, midY - this._peaks[i] - 2 * dpr, barW, 2 * dpr);
-        ctx.fillRect(x, midY + this._peaks[i], barW, 2 * dpr);
+        if (ctx.roundRect) {
+          ctx.beginPath();
+          ctx.roundRect(x, midY - barH, barW, barH * 2, barW / 2);
+          ctx.fill();
+        } else {
+          ctx.fillRect(x, midY - barH, barW, barH * 2);
+        }
       }
     }
 
-    // 2. Glowing waveform, symmetric around the centre point.
-    ctx.beginPath();
-    const halfCount = Math.floor(len / 2);
-    const step = (w / 2) / halfCount;
-    const ampAt = (i) => ((freqData[i] - 128) / 128) * (h * 0.34);
-    for (let i = 0; i <= halfCount; i++) {
-      const x = cx + i * step;
-      const y = midY - ampAt(i);
-      i === 0 ? ctx.moveTo(x, y) : ctx.lineTo(x, y);
-    }
-    for (let i = halfCount; i >= 0; i--) {
-      ctx.lineTo(cx - i * step, midY - ampAt(i));
-    }
-    ctx.strokeStyle = `rgba(${rgb}, 0.95)`;
-    ctx.lineWidth = 1.5 * dpr;
-    ctx.shadowColor = `rgba(${rgb}, 0.9)`;
-    ctx.shadowBlur = 7;
-    ctx.stroke();
-    ctx.shadowBlur = 0;
+    // --- Layer 2: the voiceprint — three flowing wave strokes ---------------
+    // Organic Siri-style motion: superimposed sines whose amplitude is driven
+    // by real voice energy, with an envelope that peaks at the centre and
+    // dissolves toward the edges. Breathes gently even in silence.
+    const amp = h * (0.10 + 0.34 * level);
+    const env = (x) => Math.pow(Math.sin(Math.PI * x / w), 1.2);
+    const waveY = (x, f, speed, phase) =>
+      midY + Math.sin(x * f + t * speed + phase) * amp * env(x)
+           + Math.sin(x * f * 2.3 + t * speed * 1.7 + phase * 2) * amp * 0.35 * env(x);
 
-    // 3. Centre baseline + tick ruler along the middle.
-    ctx.fillStyle = `rgba(${rgb}, 0.25)`;
-    ctx.fillRect(0, midY, w, 1);
-    const tickH = 3 * dpr;
-    for (let i = 0; i <= 20; i++) {
-      const x = Math.round((w / 20) * i);
-      ctx.fillRect(x, midY - tickH, 1, tickH * 2);
+    const layers = [
+      { f: 0.018, speed: 1.5,  phase: 0.0, width: 7 * dpr, alpha: 0.10 },
+      { f: 0.012, speed: -1.1, phase: 2.1, width: 4 * dpr, alpha: 0.22 },
+      { f: 0.006, speed: 0.9,  phase: 4.2, width: 1.6 * dpr, alpha: 0.95 }
+    ];
+
+    for (const L of layers) {
+      ctx.beginPath();
+      const steps = 90;
+      for (let i = 0; i <= steps; i++) {
+        const x = (w / steps) * i;
+        const y = waveY(x, L.f, L.speed, L.phase);
+        i === 0 ? ctx.moveTo(x, y) : ctx.lineTo(x, y);
+      }
+      ctx.strokeStyle = `rgba(${rgb}, ${L.alpha})`;
+      ctx.lineWidth = L.width;
+      if (L.alpha > 0.5) {
+        ctx.shadowColor = `rgba(${rgb}, 0.9)`;
+        ctx.shadowBlur = 8;
+      }
+      ctx.stroke();
+      ctx.shadowBlur = 0;
     }
   }
 }

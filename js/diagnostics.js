@@ -23,7 +23,6 @@ export class DiagnosticsManager {
 
     const health = await checkHealth();
     const rows = [];
-    const spoken = [];
 
     // Every check reads a real browser/device signal; each row carries a
     // state so the report can colour-code it. Provider names stay out of the
@@ -32,13 +31,10 @@ export class DiagnosticsManager {
       const kind = health.provider === 'groq' ? 'CLOUD' : 'LOCAL';
       const backup = health.fallbackConfigured ? ' · BACKUP READY' : '';
       rows.push({ label: 'NEURAL LINK', value: `ONLINE · ${kind}${backup}`, state: 'ok' });
-      spoken.push('Neural link online');
     } else if (health.ok) {
       rows.push({ label: 'NEURAL LINK', value: 'NO PROVIDER', state: 'warn' });
-      spoken.push('Neural link has no provider');
     } else {
       rows.push({ label: 'NEURAL LINK', value: 'UNREACHABLE', state: 'bad' });
-      spoken.push('Neural link unreachable');
     }
 
     rows.push({
@@ -46,13 +42,11 @@ export class DiagnosticsManager {
       value: `${health.latencyMs} ms`,
       state: health.latencyMs < 100 ? 'ok' : 'warn'
     });
-    spoken.push(`Link latency ${health.latencyMs} milliseconds`);
 
     const battery = this.app.telemetryMonitor ? this.app.telemetryMonitor.battery : null;
     if (battery) {
       const pct = Math.round(battery.level * 100);
       rows.push({ label: 'BATTERY', value: `${pct}% · ${battery.charging ? 'CHARGING' : 'ON BATTERY'}`, state: 'ok' });
-      spoken.push(`Battery ${pct} percent${battery.charging ? ', charging' : ' on battery'}`);
     } else {
       rows.push({ label: 'BATTERY', value: 'N/A', state: 'dim' });
     }
@@ -62,27 +56,23 @@ export class DiagnosticsManager {
       value: Number.isFinite(navigator.hardwareConcurrency) ? String(navigator.hardwareConcurrency) : 'N/A',
       state: Number.isFinite(navigator.hardwareConcurrency) ? 'info' : 'dim'
     });
-    spoken.push(`Logical cores ${navigator.hardwareConcurrency}`);
 
     rows.push({
       label: 'DEVICE MEMORY',
       value: Number.isFinite(navigator.deviceMemory) ? `${navigator.deviceMemory} GB` : 'N/A',
       state: Number.isFinite(navigator.deviceMemory) ? 'info' : 'dim'
     });
-    if (Number.isFinite(navigator.deviceMemory)) spoken.push(`Device memory ${navigator.deviceMemory} gigabytes`);
 
     const mem = typeof performance !== 'undefined' ? performance.memory : null;
     if (mem && mem.jsHeapSizeLimit) {
       const pct = Math.round((mem.usedJSHeapSize / mem.jsHeapSizeLimit) * 100);
       rows.push({ label: 'JS HEAP', value: `${pct}%`, state: pct > 90 ? 'bad' : pct > 70 ? 'warn' : 'ok' });
-      spoken.push(`JS heap ${pct} percent`);
     } else {
       rows.push({ label: 'JS HEAP', value: 'N/A', state: 'dim' });
     }
 
     const sttOk = this.app.voiceEngine && this.app.voiceEngine.sttSupported;
     rows.push({ label: 'SPEECH RECOGNITION', value: sttOk ? 'SUPPORTED' : 'UNAVAILABLE', state: sttOk ? 'ok' : 'dim' });
-    spoken.push(`Speech recognition ${sttOk ? 'supported' : 'unavailable'}`);
 
     // Worst row decides the report's overall state ring.
     const rank = { bad: 3, warn: 2, ok: 1, info: 0, dim: 0 };
@@ -110,8 +100,14 @@ export class DiagnosticsManager {
       list.appendChild(li);
     });
 
-    const summary = spoken.join(', ');
-    this.app.uiManager.appendChatMessage('friday', `Diagnostic complete, Boss. ${summary}`);
+    this.app.protocolOverlay.classList.add('active');
+
+    // One clean spoken/chat reply — the detail lives in the report overlay.
+    const issues = rows.filter(r => r.state === 'warn' || r.state === 'bad').length;
+    const summary = issues === 0
+      ? 'Diagnostic complete, Boss. All systems are running clean.'
+      : `Diagnostic complete, Boss. ${issues} system${issues > 1 ? 's need' : ' needs'} your attention — full report on screen.`;
+    this.app.uiManager.appendChatMessage('friday', summary);
     if (typeof this.app.logEvent === 'function') this.app.logEvent('Full diagnostic run complete');
 
     return summary;

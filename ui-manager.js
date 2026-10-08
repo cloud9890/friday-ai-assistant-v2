@@ -137,6 +137,18 @@ export class UIManager {
   }
 
   updateVoiceUIStatus(status) {
+    // One state signal drives the whole cockpit (reactor rings, banner,
+    // spectrum frame) via a data attribute on the center panel.
+    const panel = document.querySelector('.center-panel');
+    if (panel) {
+      const stateMap = {
+        ambient: 'ambient', standby: 'ambient', awaiting: 'listening',
+        awake: 'listening', thinking: 'thinking', speaking: 'speaking',
+        denied: 'denied', unsupported: 'ambient'
+      };
+      panel.dataset.voiceState = stateMap[status] || 'ambient';
+    }
+
     const active = status === 'awake' || status === 'speaking' || status === 'thinking' || status === 'awaiting';
     if (this.btnMic) this.btnMic.classList.toggle('listening', active);
     if (this.voicePulsar) {

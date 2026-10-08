@@ -15,6 +15,7 @@ import { createChat } from './server/lib/providers.js';
 import { runAgentTurn } from './server/agent/loop.js';
 import { primeStartAppsCache } from './server/lib/app-launcher.js';
 import { createOriginGuard } from './server/middleware/origin-guard.js';
+import { allFacts, lastEpisodes } from './server/memory/store.js';
 
 const MAX_MESSAGES = 40;
 const MAX_CONTENT_CHARS = 8000;
@@ -104,6 +105,17 @@ export default function fridayAgentPlugin(env = {}) {
     server.middlewares.use(createOriginGuard());
     primeStartAppsCache(); // resolve installed/Store app names for the launch policy
     server.middlewares.use('/api/agent', handleAgent);
+
+    // Read-only memory snapshot for the HUD's MEMORY CORE card.
+    server.middlewares.use('/api/memory', (req, res) => {
+      const facts = allFacts().slice(-6).reverse();
+      res.setHeader('Content-Type', 'application/json');
+      res.end(JSON.stringify({
+        factsCount: allFacts().length,
+        facts: facts.map(f => ({ key: f.key, value: f.value, updatedAt: f.updatedAt })),
+        episodes: lastEpisodes(3).reverse()
+      }));
+    });
   }
 
   return {

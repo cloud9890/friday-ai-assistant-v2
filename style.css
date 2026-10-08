@@ -1592,3 +1592,584 @@ body.stark-theme {
     overflow-y: auto;
   }
 }
+
+/* ==========================================================================
+   PANEL REDESIGN — "INSTRUMENT DECK"
+   Unifies the side panels, diagnostics, directives, command dock and footer
+   with the header's chamfered, cyan-instrument language. Overrides earlier
+   definitions (cascades last).
+   ========================================================================== */
+
+/* --- Cards: accent spine, refined header -------------------------------- */
+.card-header {
+  position: relative;
+  padding: 0.55rem 0.9rem 0.55rem 1.05rem;
+  background: linear-gradient(90deg, rgba(0, 240, 255, 0.09), rgba(0, 240, 255, 0.02) 70%);
+  border-bottom: 1px solid rgba(0, 240, 255, 0.18);
+  gap: 0.55rem;
+}
+
+.card-header::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 0;
+  bottom: -1px;
+  width: 2px;
+  background: var(--cyan-primary);
+  box-shadow: 0 0 7px rgba(0, 240, 255, 0.7);
+}
+
+.card-header h2 {
+  font-size: 0.72rem;
+  letter-spacing: 2.5px;
+  color: rgba(255, 255, 255, 0.92);
+}
+
+.card-icon {
+  display: flex;
+  align-items: center;
+  color: var(--cyan-primary);
+  filter: drop-shadow(0 0 4px rgba(0, 240, 255, 0.55));
+}
+
+.card-icon svg { display: block; }
+
+.card-tag {
+  font-size: 0.55rem;
+  letter-spacing: 1.6px;
+  padding: 0.18rem 0.55rem;
+  border-radius: 0;
+  background: rgba(0, 240, 255, 0.07);
+  clip-path: polygon(4px 0, 100% 0, calc(100% - 4px) 100%, 0 100%);
+}
+
+/* --- Stat readouts (left panel) ------------------------------------------ */
+.suit-stat-readout {
+  gap: 0.6rem;
+  font-size: 0.72rem;
+}
+
+.stat-row {
+  align-items: baseline;
+}
+
+.stat-name {
+  font-size: 0.6rem;
+  letter-spacing: 1.8px;
+  text-transform: uppercase;
+}
+
+.stat-value {
+  font-size: 0.88rem;
+  letter-spacing: 0.5px;
+  font-variant-numeric: tabular-nums;
+  text-shadow: 0 0 8px rgba(0, 240, 255, 0.25);
+}
+.stat-value.gold { text-shadow: 0 0 8px rgba(255, 170, 0, 0.3); }
+.stat-value.green { text-shadow: 0 0 8px rgba(0, 255, 170, 0.3); }
+
+.meter-bar {
+  height: 6px;
+  border-radius: 0;
+  background: rgba(0, 240, 255, 0.06);
+  border: 1px solid rgba(0, 240, 255, 0.14);
+  clip-path: polygon(3px 0, 100% 0, calc(100% - 3px) 100%, 0 100%);
+}
+
+.meter-fill {
+  border-radius: 0;
+}
+
+/* --- Network grid (left panel) ------------------------------------------- */
+.scanner-grid { gap: 0.55rem; }
+
+.scan-item {
+  border-radius: 0;
+  border: 1px solid rgba(0, 240, 255, 0.12);
+  border-left: 2px solid rgba(0, 240, 255, 0.45);
+  padding: 0.5rem 0.6rem;
+  transition: border-color 0.2s ease, background 0.2s ease;
+}
+
+.scan-item:hover {
+  border-left-color: var(--cyan-primary);
+  background: rgba(0, 240, 255, 0.06);
+}
+
+.scan-label {
+  font-size: 0.55rem;
+  letter-spacing: 1.6px;
+  text-transform: uppercase;
+}
+
+.scan-val {
+  font-size: 0.8rem;
+  font-variant-numeric: tabular-nums;
+}
+
+/* --- Diagnostics meters (right panel) ------------------------------------ */
+.diag-item { gap: 0.3rem; }
+
+.diag-lbl {
+  align-items: baseline;
+}
+
+.diag-lbl > span:first-child {
+  font-size: 0.6rem;
+  letter-spacing: 1.8px;
+  text-transform: uppercase;
+}
+
+.diag-lbl .val {
+  font-size: 0.85rem;
+  font-variant-numeric: tabular-nums;
+  text-shadow: 0 0 8px rgba(0, 240, 255, 0.25);
+}
+
+/* --- Directives ----------------------------------------------------------- */
+.directive-input-wrap input {
+  border-radius: 0;
+  clip-path: polygon(5px 0, 100% 0, calc(100% - 5px) 100%, 0 100%);
+}
+
+.directive-input-wrap button {
+  border-radius: 0;
+  clip-path: polygon(4px 0, 100% 0, calc(100% - 4px) 100%, 0 100%);
+  background: rgba(0, 240, 255, 0.1);
+  transition: background 0.2s ease, box-shadow 0.2s ease;
+}
+
+.directive-input-wrap button:hover {
+  background: rgba(0, 240, 255, 0.25);
+  box-shadow: 0 0 10px rgba(0, 240, 255, 0.4);
+}
+
+.directive-item {
+  border-radius: 0;
+  border-left: 2px solid rgba(0, 240, 255, 0.4);
+}
+
+/* --- System checks button ------------------------------------------------- */
+.protocol-btn {
+  border-radius: 0;
+  clip-path: polygon(8px 0, 100% 0, calc(100% - 8px) 100%, 0 100%);
+  padding: 0.7rem 0.5rem;
+}
+
+.protocol-btn .p-code {
+  letter-spacing: 2.5px;
+  color: var(--cyan-primary);
+  opacity: 0.7;
+}
+
+.protocol-btn .p-name {
+  letter-spacing: 1.5px;
+  margin-top: 4px;
+}
+
+/* --- Command dock ---------------------------------------------------------- */
+.cmd-input {
+  border-radius: 0;
+  height: 42px;
+  clip-path: polygon(8px 0, 100% 0, calc(100% - 8px) 100%, 0 100%);
+  background: rgba(0, 240, 255, 0.03);
+}
+
+.send-btn {
+  border-radius: 0;
+  clip-path: polygon(8px 0, 100% 0, calc(100% - 8px) 100%, 0 100%);
+}
+
+.quick-chip {
+  border-radius: 0;
+  clip-path: polygon(5px 0, 100% 0, calc(100% - 5px) 100%, 0 100%);
+  font-family: var(--font-mono);
+  font-size: 0.6rem;
+  letter-spacing: 1.2px;
+  text-transform: uppercase;
+}
+
+/* --- Footer ----------------------------------------------------------------- */
+.hud-footer {
+  height: 32px;
+  letter-spacing: 1px;
+}
+
+.footer-item:first-child {
+  letter-spacing: 2px;
+  color: rgba(122, 155, 184, 0.75);
+}
+
+.ticker-wrap {
+  max-width: 55%;
+  mask-image: linear-gradient(90deg, transparent, #000 4%, #000 92%, transparent);
+  -webkit-mask-image: linear-gradient(90deg, transparent, #000 4%, #000 92%, transparent);
+}
+
+.footer-item#footerStatus {
+  color: var(--green-ok);
+}
+
+/* ==========================================================================
+   COCKPIT REDESIGN — "THE HEARTBEAT"
+   The center column is one organism: the arc reactor is F.R.I.D.A.Y.'s heart
+   and every component (banner, spectrum, dock) breathes in her current state
+   color, driven by .center-panel[data-voice-state]:
+     ambient -> cyan | listening -> green | thinking -> blue | speaking -> gold
+   ========================================================================== */
+
+.center-panel {
+  --state-color: var(--cyan-primary);
+  --state-rgb: 0, 240, 255;
+}
+.center-panel[data-voice-state='listening'] { --state-color: var(--green-ok);   --state-rgb: 0, 255, 170; }
+.center-panel[data-voice-state='thinking']  { --state-color: var(--blue-glow);  --state-rgb: 0, 119, 255; }
+.center-panel[data-voice-state='speaking']  { --state-color: var(--gold-accent); --state-rgb: 255, 170, 0; }
+.center-panel[data-voice-state='denied']    { --state-color: var(--red-alert);  --state-rgb: 255, 51, 85; }
+
+/* --- Arc reactor: layered instrument rings -------------------------------- */
+.arc-reactor-container {
+  width: 236px;
+  height: 236px;
+  margin: 0.1rem 0 0.15rem;
+}
+
+#arcCanvas {
+  width: 220px;
+  height: 220px;
+}
+
+/* Outer ring: a rotating segmented tick dial (conic dashes, ring mask). */
+.orbital-ring.ring-outer {
+  width: 232px;
+  height: 232px;
+  border: none;
+  background:
+    repeating-conic-gradient(from 0deg,
+      var(--state-color) 0deg 1.6deg, transparent 1.6deg 12deg);
+  -webkit-mask: radial-gradient(circle, transparent 0 calc(50% - 3px), #000 calc(50% - 2.5px) calc(50% - 0.5px), transparent 50%);
+  mask: radial-gradient(circle, transparent 0 calc(50% - 3px), #000 calc(50% - 2.5px) calc(50% - 0.5px), transparent 50%);
+  opacity: 0.55;
+  animation: rotate-cw 26s linear infinite;
+  transition: opacity 0.4s ease;
+}
+
+/* Mid ring: two counter-sweeping arc segments. */
+.orbital-ring.ring-mid {
+  width: 186px;
+  height: 186px;
+  border: 2px solid var(--state-color);
+  border-left-color: transparent;
+  border-right-color: transparent;
+  opacity: 0.5;
+  animation: rotate-ccw 11s linear infinite;
+}
+
+/* Inner ring: thin track with a small orbiting node. */
+.orbital-ring.ring-inner {
+  width: 142px;
+  height: 142px;
+  border: 1px solid color-mix(in srgb, var(--state-color) 55%, transparent);
+  animation: rotate-cw 7s linear infinite;
+}
+
+.orbital-ring.ring-inner::after {
+  content: '';
+  position: absolute;
+  top: -3px;
+  left: calc(50% - 3px);
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--state-color);
+  box-shadow: 0 0 8px var(--state-color);
+}
+
+.center-panel[data-voice-state='listening'] .orbital-ring,
+.center-panel[data-voice-state='speaking'] .orbital-ring,
+.center-panel[data-voice-state='thinking'] .orbital-ring {
+  opacity: 0.85;
+}
+
+/* Reactor core text: stripped of the pill, pure centered type. */
+.reactor-center-info {
+  background: radial-gradient(circle, rgba(2, 10, 20, 0.82) 0%, rgba(2, 10, 20, 0.35) 62%, transparent 100%);
+  padding: 10px 18px;
+  border-radius: 0;
+}
+
+.reactor-title {
+  font-size: 1.15rem;
+  letter-spacing: 4px;
+  margin-right: -4px;
+  text-shadow:
+    0 0 10px var(--state-color),
+    0 0 3px #000;
+  transition: text-shadow 0.4s ease;
+}
+
+.reactor-state {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 0.58rem;
+  letter-spacing: 2.5px;
+  color: var(--state-color);
+  text-shadow: 0 0 7px var(--state-color);
+  transition: color 0.4s ease;
+}
+
+.reactor-state::before,
+.reactor-state::after {
+  content: '';
+  width: 10px;
+  height: 1px;
+  background: var(--state-color);
+  opacity: 0.7;
+}
+
+/* --- Voice banner: the comm state line ------------------------------------- */
+.voice-status-banner {
+  border-radius: 0;
+  background:
+    repeating-linear-gradient(90deg, rgba(255, 255, 255, 0.02) 0 1px, transparent 1px 4px),
+    linear-gradient(90deg, color-mix(in srgb, var(--state-color) 10%, transparent), rgba(0, 240, 255, 0.02) 60%);
+  border: 1px solid color-mix(in srgb, var(--state-color) 30%, transparent);
+  border-left: 2px solid var(--state-color);
+  clip-path: polygon(10px 0, 100% 0, calc(100% - 10px) 100%, 0 100%);
+  color: var(--state-color);
+  text-transform: uppercase;
+  font-size: 0.62rem;
+  letter-spacing: 1.8px;
+  justify-content: flex-start;
+  padding: 0.45rem 1.1rem 0.45rem 0.9rem;
+  transition: border-color 0.4s ease, color 0.4s ease, background 0.4s ease;
+  animation: state-breath 2.6s ease-in-out infinite;
+}
+
+@keyframes state-breath {
+  0%, 100% { box-shadow: 0 0 4px color-mix(in srgb, var(--state-color) 18%, transparent) inset; }
+  50%      { box-shadow: 0 0 12px color-mix(in srgb, var(--state-color) 30%, transparent) inset; }
+}
+
+.voice-indicator-pulsar {
+  background: var(--state-color);
+  box-shadow: 0 0 10px var(--state-color);
+  width: 7px;
+  height: 7px;
+  flex-shrink: 0;
+}
+
+/* --- Comm card header -------------------------------------------------------- */
+.terminal-card .card-tag {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  color: var(--green-ok);
+  border-color: rgba(0, 255, 170, 0.35);
+  background: rgba(0, 255, 170, 0.06);
+}
+
+.terminal-card .card-tag svg { display: block; }
+
+/* --- Spectrum frame: state-tinted --------------------------------------------- */
+.spectrum-bar-wrap {
+  border-top-color: color-mix(in srgb, var(--state-color) 38%, transparent);
+  border-bottom-color: color-mix(in srgb, var(--state-color) 14%, transparent);
+  transition: border-color 0.4s ease;
+}
+
+.spectrum-cap {
+  background: linear-gradient(180deg,
+    var(--state-color), color-mix(in srgb, var(--state-color) 15%, transparent) 55%, var(--state-color));
+  opacity: 0.7;
+  transition: background 0.4s ease;
+}
+
+/* --- Command dock: console input ------------------------------------------------ */
+.command-dock {
+  align-items: stretch;
+  padding: 0.7rem 0.9rem;
+  background:
+    repeating-linear-gradient(0deg, rgba(0, 240, 255, 0.015) 0 1px, transparent 1px 3px),
+    linear-gradient(180deg, rgba(3, 10, 24, 0.95), rgba(2, 7, 18, 0.95));
+  border-top: 1px solid color-mix(in srgb, var(--state-color) 25%, transparent);
+  transition: border-color 0.4s ease;
+}
+
+.dock-prompt {
+  display: flex;
+  align-items: center;
+  font-family: var(--font-mono);
+  font-size: 1rem;
+  font-weight: bold;
+  color: var(--state-color);
+  text-shadow: 0 0 8px var(--state-color);
+  padding-right: 0.55rem;
+  animation: prompt-blink 1.6s steps(2, start) infinite;
+  transition: color 0.4s ease;
+}
+
+@keyframes prompt-blink {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.45; }
+}
+
+.cmd-input {
+  height: 40px;
+  caret-color: var(--state-color);
+  font-size: 0.92rem;
+}
+
+.cmd-input::placeholder {
+  color: rgba(122, 155, 184, 0.55);
+  letter-spacing: 0.5px;
+}
+
+.cmd-input:focus {
+  border-color: var(--state-color);
+  box-shadow: 0 0 12px color-mix(in srgb, var(--state-color) 35%, transparent);
+}
+
+.send-btn {
+  position: relative;
+  overflow: hidden;
+  border-radius: 0;
+  height: 40px;
+  clip-path: polygon(8px 0, 100% 0, calc(100% - 8px) 100%, 0 100%);
+  letter-spacing: 2px;
+  font-size: 0.7rem;
+}
+
+/* A light sweep across the button on hover. */
+.send-btn::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: -60%;
+  width: 40%;
+  background: linear-gradient(105deg, transparent, rgba(255, 255, 255, 0.28), transparent);
+  transform: skewX(-18deg);
+  transition: left 0.45s ease;
+}
+
+.send-btn:hover::after {
+  left: 120%;
+}
+
+/* --- Spectrum frame v3: calm stage for the voiceprint wave ---------------- */
+.spectrum-bar-wrap {
+  height: 52px;
+  background: linear-gradient(180deg, rgba(2, 8, 20, 0.95), rgba(0, 10, 25, 0.9));
+}
+
+.spectrum-label {
+  right: 8px;
+  bottom: 3px;
+  top: auto;
+  color: color-mix(in srgb, var(--state-color) 60%, transparent);
+  transition: color 0.4s ease;
+}
+
+/* --- Activity log card (left panel) ---------------------------------------- */
+.activity-list {
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  font-family: var(--font-mono);
+}
+
+.activity-item {
+  display: flex;
+  gap: 0.6rem;
+  align-items: baseline;
+  padding: 0.3rem 0.1rem;
+  border-bottom: 1px dashed rgba(0, 240, 255, 0.1);
+  font-size: 0.68rem;
+  animation: report-row-in 0.3s ease;
+}
+
+.activity-item:first-child .a-msg {
+  color: var(--cyan-primary);
+}
+
+.activity-item:last-child { border-bottom: none; }
+
+.activity-item.empty {
+  color: var(--text-dim);
+  justify-content: center;
+  border: none;
+}
+
+.a-time {
+  color: var(--text-dim);
+  font-size: 0.6rem;
+  flex-shrink: 0;
+  font-variant-numeric: tabular-nums;
+}
+
+.a-msg {
+  color: var(--text-main);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* --- Memory core card (right panel) ----------------------------------------- */
+.memory-list {
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  font-family: var(--font-mono);
+}
+
+.memory-item {
+  display: flex;
+  gap: 0.6rem;
+  align-items: baseline;
+  justify-content: space-between;
+  padding: 0.32rem 0.5rem;
+  margin-bottom: 0.3rem;
+  background: rgba(0, 240, 255, 0.03);
+  border-left: 2px solid rgba(0, 240, 255, 0.35);
+  font-size: 0.68rem;
+  animation: report-row-in 0.3s ease;
+}
+
+.memory-item.episode {
+  border-left-color: var(--gold-accent);
+  background: rgba(255, 170, 0, 0.04);
+}
+
+.memory-item.empty {
+  background: none;
+  border-left: none;
+  color: var(--text-dim);
+  justify-content: center;
+}
+
+.m-key {
+  color: var(--cyan-primary);
+  letter-spacing: 1px;
+  text-transform: uppercase;
+  font-size: 0.58rem;
+  flex-shrink: 0;
+}
+
+.memory-item.episode .m-key { color: var(--gold-accent); }
+
+.m-val {
+  color: var(--text-main);
+  text-align: right;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* Panels: let the new cards breathe without dead space at the bottom */
+.left-panel .activity-card,
+.right-panel .memory-card {
+  margin-top: auto;
+}

@@ -35,6 +35,7 @@ class FridayApp {
 
     this.directives = [];
     this.conversation = [];              // real short-term memory (this session only)
+    this.activityLog = [];               // timestamped audit trail for the HUD card
     this.currentTaskController = null;
     this.lastLinkHealth = null;
     this.linkDegraded = false;
@@ -56,6 +57,8 @@ class FridayApp {
     this.directiveManager.loadPersistentData();
     this.requestLocation();
     this.bootstrap();
+    this.refreshMemoryCore();
+    setInterval(() => this.refreshMemoryCore(), 20000);
 
     // Always-on wake word: the mic goes hot on page load. Chromium's
     // AudioContext needs one user gesture before it will analyse audio.
@@ -111,6 +114,11 @@ class FridayApp {
     this.btnAddDirective = document.getElementById('btnAddDirective');
     this.directiveList = document.getElementById('directiveList');
     this.directiveCount = document.getElementById('directiveCount');
+
+    // Activity log + memory core cards
+    this.activityList = document.getElementById('activityList');
+    this.memoryCount = document.getElementById('memoryCount');
+    this.memoryList = document.getElementById('memoryList');
 
     // Checks & overlay
     this.btnRunDiagnostics = document.getElementById('btnRunDiagnostics');
@@ -209,7 +217,7 @@ class FridayApp {
     if (health.ok && health.configured) {
       // Provider specifics stay in the ticker; the chat stays in character.
       this.uiManager.appendChatMessage('friday', 'All systems online and standing by, Boss.');
-      this.logEvent(`Neural link online (${health.provider}, fallback: ${health.fallbackConfigured ? health.fallback : 'none'})`);
+      this.logEvent('Systems online');
     } else if (health.ok && !health.configured) {
       const fallbackNote = health.fallbackConfigured
         ? 'Running on my local backup model for now, Boss.'
@@ -279,16 +287,91 @@ class FridayApp {
   }
 
   /* ------------------------------------------------------------------------
-     LIVE TICKER (real events only)
+     LIVE TICKER + ACTIVITY LOG (real events only)
      ------------------------------------------------------------------------ */
   logEvent(message) {
     this.tickerEvents.push(message);
     if (this.tickerEvents.length > 6) this.tickerEvents.shift();
     if (this.tickerText) this.tickerText.textContent = this.tickerEvents.join('  //  ');
+
+    // The ACTIVITY LOG card keeps a timestamped audit trail, newest first.
+    this.activityLog.unshift({ time: new Date(), message });
+    if (this.activityLog.length > 7) this.activityLog.pop();
+    this.renderActivity();
+  }
+
+  renderActivity() {
+    if (!this.activityList) return;
+    this.activityList.innerHTML = '';
+    if (this.activityLog.length === 0) {
+      const li = document.createElement('li');
+      li.className = 'activity-item empty';
+      li.textContent = 'No activity recorded.';
+      this.activityList.appendChild(li);
+      return;
+    }
+    for (const entry of this.activityLog) {
+      const li = document.createElement('li');
+      li.className = 'activity-item';
+      const time = document.createElement('span');
+      time.className = 'a-time';
+      time.textContent = entry.time.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+      const msg = document.createElement('span');
+      msg.className = 'a-msg';
+      msg.textContent = entry.message;
+      li.appendChild(time);
+      li.appendChild(msg);
+      this.activityList.appendChild(li);
+    }
+  }
+
+  /* Memory core: a live read-only view of F.R.I.D.A.Y.'s long-term memory. */
+  async refreshMemoryCore() {
+    try {
+      const res = await fetch('/api/memory');
+      const data = await res.json();
+      if (this.memoryCount) this.memoryCount.textContent = `${data.factsCount} FACT${data.factsCount === 1 ? '' : 'S'}`;
+      if (!this.memoryList) return;
+      this.memoryList.innerHTML = '';
+      if (data.facts.length === 0 && data.episodes.length === 0) {
+        const li = document.createElement('li');
+        li.className = 'memory-item empty';
+        li.textContent = 'No memories stored yet — tell me to remember something, Boss.';
+        this.memoryList.appendChild(li);
+        return;
+      }
+      for (const fact of data.facts) {
+        const li = document.createElement('li');
+        li.className = 'memory-item';
+        const key = document.createElement('span');
+        key.className = 'm-key';
+        key.textContent = fact.key;
+        const value = document.createElement('span');
+        value.className = 'm-val';
+        value.textContent = fact.value;
+        li.appendChild(key);
+        li.appendChild(value);
+        this.memoryList.appendChild(li);
+      }
+      const lastChat = data.episodes[0];
+      if (lastChat && lastChat.user) {
+        const li = document.createElement('li');
+        li.className = 'memory-item episode';
+        const key = document.createElement('span');
+        key.className = 'm-key';
+        key.textContent = 'LAST CHAT';
+        const value = document.createElement('span');
+        value.className = 'm-val';
+        value.textContent = lastChat.user.slice(0, 44);
+        li.appendChild(key);
+        li.appendChild(value);
+        this.memoryList.appendChild(li);
+      }
+    } catch (e) { /* the memory panel is an optional surface */ }
   }
 
   /* ------------------------------------------------------------------------
-     USER COMMAND PROCESSOR (real AI, real cancellation)
+     CLOCK
      ------------------------------------------------------------------------ */
   async handleUserCommand(rawText = null) {
     const text = (rawText || this.cmdInput.value).trim();
@@ -405,6 +488,7 @@ class FridayApp {
     this.uiManager.resolveThinkingIndicator(thinkingId, reply);
     this.uiManager.updateVoiceUIStatus('standby');
     this.voiceEngine.speak(reply);
+    this.refreshMemoryCore();
   }
 
   /* Friendly HUD labels for tool names — the raw skill name is plumbing. */
