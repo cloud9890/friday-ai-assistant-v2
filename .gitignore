@@ -2,6 +2,9 @@
 _devlog*.txt
 data/
 
+# Local working notes (session handoff — never committed)
+HANDOFF.md
+
 # Environment and Secrets (CRITICAL)
 .env
 .env.*
