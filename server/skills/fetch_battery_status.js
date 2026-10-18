@@ -12,6 +12,7 @@ export default {
   risk: RISK.SAFE,
   permissions: [PERMISSION.READ_SYSTEM],
   confirmation: CONFIRMATION.NONE,
+  schedulable: true,
 
   execute() {
     const battery = new Promise((resolve) => {

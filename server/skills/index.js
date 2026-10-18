@@ -37,6 +37,7 @@ import run_command from './run_command.js';
 import organize_files from './organize_files.js';
 import zip_folder from './zip_folder.js';
 import convert_image from './convert_image.js';
+import schedule_task from './schedule_task.js';
 
 export default [
   open_desktop_app,
@@ -72,5 +73,6 @@ export default [
   run_command,
   organize_files,
   zip_folder,
-  convert_image
+  convert_image,
+  schedule_task
 ];

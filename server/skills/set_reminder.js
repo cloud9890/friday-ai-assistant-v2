@@ -9,21 +9,7 @@
 
 import { RISK, CONFIRMATION, PERMISSION } from '../security/risk.js';
 import { scheduleJob } from '../lib/scheduler.js';
-
-function resolveAt(args) {
-  if (typeof args.delay_minutes === 'number' && Number.isFinite(args.delay_minutes)) {
-    return new Date(Date.now() + args.delay_minutes * 60000);
-  }
-  return new Date(Date.parse(args.when));
-}
-
-function humanTime(date) {
-  const now = new Date();
-  const sameDay = date.toDateString() === now.toDateString();
-  return date.toLocaleString(undefined, sameDay
-    ? { hour: '2-digit', minute: '2-digit' }
-    : { weekday: 'short', hour: '2-digit', minute: '2-digit' });
-}
+import { resolveAt, humanTime } from '../lib/schedule-time.js';
 
 export default {
   name: 'set_reminder',

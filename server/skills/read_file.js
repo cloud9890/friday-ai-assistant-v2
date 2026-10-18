@@ -23,6 +23,7 @@ export default {
   risk: RISK.MEDIUM,
   permissions: [PERMISSION.READ_FILES],
   confirmation: CONFIRMATION.NONE,
+  schedulable: true,
 
   policyHints(args) {
     // The kernel must see the resolved FILE, not just the folder: a bare

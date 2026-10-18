@@ -12,6 +12,7 @@ import { resolveApp, validateProcessTarget, SENSITIVE_EXECUTABLES } from './app-
 import { checkUrl, checkUrlForAgent } from './network-policy.js';
 import { checkWritePath, checkReadPath, checkDeletePath, checkFileName, checkIndexPath, checkMovePath } from './path-policy.js';
 import { classifyCommand, COMMAND_DECISION } from './command-policy.js';
+import { policyHints } from '../skills/registry.js';
 import { documentsDir, desktopDir, homeDir } from '../lib/paths.js';
 import { auditEvent } from './audit.js';
 
@@ -21,6 +22,43 @@ function fail(reason) {
 
 /** Upper bound on one bulk reorganisation, so a plan cannot be unbounded. */
 export const MAX_MOVES = 200;
+
+/**
+ * Certifies the time of a reminder OR a scheduled task: either a relative
+ * delay or an ISO 8601 clock time, in range and not in the past.
+ * @returns {string|null} a denial reason, or null when the time is good
+ */
+function checkScheduleTime(args, { requireText = true } = {}) {
+  if (requireText && (typeof args.text !== 'string' || args.text.trim().length < 2)) {
+    return 'text is required';
+  }
+
+  const when = args.when;
+  const delay = args.delay_minutes;
+  const hasWhen = typeof when === 'string' && when.trim() !== '';
+  const hasDelay = delay !== undefined && delay !== null;
+
+  if (!hasWhen && !hasDelay) return 'either "when" or "delay_minutes" is required';
+  if (hasWhen && hasDelay) return 'takes either "when" or "delay_minutes", not both';
+
+  if (hasDelay) {
+    if (typeof delay !== 'number' || !Number.isFinite(delay)) {
+      return 'delay_minutes must be a number';
+    }
+    if (delay <= 0 || delay > 43200) {
+      return 'delay_minutes must be greater than 0 and at most 43200 (30 days)';
+    }
+  }
+
+  if (hasWhen) {
+    const at = Date.parse(when);
+    if (Number.isNaN(at)) return 'when must be an ISO 8601 date-time (e.g. 2026-10-18T17:30:00)';
+    const delta = at - Date.now();
+    if (delta < -60000) return 'when is in the past';
+    if (delta > 366 * 24 * 60 * 60 * 1000) return 'when must be within the next year';
+  }
+  return null;
+}
 
 /**
  * Runs the policy for one permission. Returns null when the permission has no
@@ -203,39 +241,43 @@ function checkPermission(permission, args, tool) {
     }
 
     case PERMISSION.SCHEDULE_WRITE: {
+      // `schedule_task` stores a capability to run later, UNATTENDED. It may
+      // only store an action the kernel approves right now with no
+      // confirmation: the user approves the task at creation time, and a
+      // capability that starts needing approval is refused here rather than
+      // interrupted later. The plan arrives as a policy hint (__schedule),
+      // exactly like organize_files' __moves, so the executor applies what the
+      // kernel certified. At fire time the kernel re-authorises the action.
+      if (tool === 'schedule_task') {
+        const time = checkScheduleTime(args, { requireText: false });
+        if (time) return { reason: time };
+
+        const plan = args.__schedule;
+        if (!plan || typeof plan !== 'object') return { reason: 'no action was proposed to schedule' };
+
+        const name = String(plan.skill || '').trim();
+        if (!name) return { reason: 'schedule_task needs a "skill" to run' };
+        const inner = getToolMetadata(name);
+        if (!inner) return { reason: `unknown capability: ${name}` };
+        if (inner.schedulable !== true) return { reason: `${name} cannot be run on a schedule` };
+
+        const innerArgs = (plan.args && typeof plan.args === 'object' && !Array.isArray(plan.args)) ? plan.args : {};
+        const hints = policyHints(name, innerArgs);
+        const decision = authorize({ tool: name, args: innerArgs, actor: 'scheduler', ...hints });
+        if (decision.decision !== DECISION.ALLOW) {
+          return { reason: `scheduled ${name} is not allowed: ${decision.reason}` };
+        }
+        if (decision.confirmation !== CONFIRMATION.NONE) {
+          return { reason: `scheduled ${name} would need your approval when it runs` };
+        }
+        return null;
+      }
+
       // Only the reminder-creating skill carries a timestamp; cancel_task
       // shares the permission but has nothing time-shaped to certify.
       if (tool !== 'set_reminder') return null;
-
-      if (typeof args.text !== 'string' || args.text.trim().length < 2) {
-        return { reason: 'text is required' };
-      }
-
-      const when = args.when;
-      const delay = args.delay_minutes;
-      const hasWhen = typeof when === 'string' && when.trim() !== '';
-      const hasDelay = delay !== undefined && delay !== null;
-
-      if (!hasWhen && !hasDelay) return { reason: 'set_reminder needs either "when" or "delay_minutes"' };
-      if (hasWhen && hasDelay) return { reason: 'set_reminder takes either "when" or "delay_minutes", not both' };
-
-      if (hasDelay) {
-        if (typeof delay !== 'number' || !Number.isFinite(delay)) {
-          return { reason: 'delay_minutes must be a number' };
-        }
-        if (delay <= 0 || delay > 43200) {
-          return { reason: 'delay_minutes must be greater than 0 and at most 43200 (30 days)' };
-        }
-      }
-
-      if (hasWhen) {
-        const at = Date.parse(when);
-        if (Number.isNaN(at)) return { reason: 'when must be an ISO 8601 date-time (e.g. 2026-10-18T17:30:00)' };
-        const delta = at - Date.now();
-        if (delta < -60000) return { reason: 'when is in the past' };
-        if (delta > 366 * 24 * 60 * 60 * 1000) return { reason: 'when must be within the next year' };
-      }
-      return null;
+      const reason = checkScheduleTime(args, { requireText: true });
+      return reason ? { reason } : null;
     }
 
     case PERMISSION.NOTIFY: {
@@ -278,7 +320,7 @@ export function authorize(request = {}) {
   const args = { ...(request.args || {}) };
 
   // Internal hints travel alongside args but are not part of the tool schema.
-  for (const key of ['__fileName', '__targetPath', '__readDirs', '__moves', '__viaAgent']) {
+  for (const key of ['__fileName', '__targetPath', '__readDirs', '__moves', '__schedule', '__viaAgent']) {
     if (request[key] !== undefined) args[key] = request[key];
   }
 

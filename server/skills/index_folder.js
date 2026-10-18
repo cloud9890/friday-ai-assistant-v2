@@ -24,6 +24,7 @@ export default {
   risk: RISK.MEDIUM,
   permissions: [PERMISSION.INDEX_READ],
   confirmation: CONFIRMATION.NONE,
+  schedulable: true,
 
   policyHints(args) {
     // The kernel must see the resolved folder, never the raw model string —

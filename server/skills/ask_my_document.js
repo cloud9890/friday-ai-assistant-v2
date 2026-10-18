@@ -31,6 +31,7 @@ export default {
   risk: RISK.MEDIUM,
   permissions: [PERMISSION.INDEX_READ],
   confirmation: CONFIRMATION.NONE,
+  schedulable: true,
 
   policyHints(args) {
     const dir = resolveParent(args.parent);

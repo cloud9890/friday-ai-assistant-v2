@@ -17,6 +17,7 @@ export default {
   risk: RISK.MEDIUM,
   permissions: [PERMISSION.READ_FILES],
   confirmation: CONFIRMATION.NONE,
+  schedulable: true,
 
   policyHints(args) {
     const dir = resolveParent(args.parent);

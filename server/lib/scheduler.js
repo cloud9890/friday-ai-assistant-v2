@@ -60,9 +60,14 @@ function prune(jobs, now = Date.now()) {
 
 /**
  * Creates a pending job. `at` is an ISO 8601 timestamp.
- * @param {{text: string, at: string, kind?: string}} spec
+ *
+ * A job is either a plain reminder (spoken at fire time) or a scheduled
+ * capability: `action` carries `{ skill, args }` that the kernel certified at
+ * CREATION time and will re-authorise at FIRE time (see vite-plugin-agent.js).
+ *
+ * @param {{text: string, at: string, kind?: string, action?: {skill: string, args: object}|null}} spec
  */
-export function scheduleJob({ text, at, kind = 'reminder' } = {}) {
+export function scheduleJob({ text, at, kind = 'reminder', action = null } = {}) {
   const store = load();
   const job = {
     id: makeId(),
@@ -73,6 +78,12 @@ export function scheduleJob({ text, at, kind = 'reminder' } = {}) {
     status: 'pending',
     firedAt: null
   };
+  if (action && typeof action.skill === 'string' && action.skill.trim()) {
+    job.action = {
+      skill: action.skill.trim(),
+      args: (action.args && typeof action.args === 'object' && !Array.isArray(action.args)) ? action.args : {}
+    };
+  }
   store.jobs = prune([...store.jobs, job]);
   persist(store);
   return job;

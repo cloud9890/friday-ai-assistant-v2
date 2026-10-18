@@ -16,6 +16,7 @@ export default {
   risk: RISK.SAFE,
   permissions: [PERMISSION.MEMORY_READ],
   confirmation: CONFIRMATION.NONE,
+  schedulable: true,
 
   execute(args) {
     const facts = searchFacts(args.query).slice(0, 10);

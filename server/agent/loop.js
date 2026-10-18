@@ -147,6 +147,13 @@ function intentBooster(userText) {
   if (isReminderRead) {
     return { role: 'system', content: 'Directive: the user asks what is SCHEDULED. Call list_tasks and report the pending items in natural speech. Do not answer from text alone.' };
   }
+  // A capability the user wants run on its own at a time (not a bare reminder).
+  const isScheduledTask = /\b(every (day|morning|night|hour|week)|each (day|morning|night))\b/.test(t)
+    || /\b(schedule|automate)\b[^.]*\b(backup|index|check|scan|report|summar)/.test(t)
+    || /\b(at|by) \d{1,2}(:\d{2})?\s*(am|pm)\b[^.]*\b(index|check|scan|search|report|list)\b/.test(t);
+  if (isScheduledTask) {
+    return { role: 'system', content: 'Directive: the user wants a read-only tool to RUN ON ITS OWN at a time. Call schedule_task with "skill" (the read-only tool, e.g. index_folder, search_knowledge, fetch_battery_status) and "args" (its arguments), plus a time: delay_minutes, or get_current_time first then "when" as an ISO 8601 date-time. Only read-only tools can be scheduled; Boss approves it now. Do not answer from text alone.' };
+  }
 
   // "remember that...", "note down...", "keep in mind..." (memory writes)
   const isWrite = /^\s*(please\s+)?(remember|note down|keep in mind|store this)\b/.test(t)

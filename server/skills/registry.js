@@ -39,7 +39,7 @@ export function toolCatalog() {
   }));
 }
 
-/** Kernel capability table: { name: { risk, permissions, confirmation, inputSchema } }. */
+/** Kernel capability table: { name: { risk, permissions, confirmation, inputSchema, schedulable } }. */
 export function capabilityTable() {
   const table = {};
   for (const [name, skill] of byName) {
@@ -51,7 +51,9 @@ export function capabilityTable() {
       risk: skill.risk,
       permissions: skill.permissions,
       confirmation: skill.confirmation,
-      inputSchema
+      inputSchema,
+      // Only a skill that opts in may run unattended from schedule_task.
+      schedulable: skill.schedulable === true
     };
   }
   return table;

@@ -37,6 +37,7 @@ export default {
   risk: RISK.MEDIUM,
   permissions: [PERMISSION.READ_FILES],
   confirmation: CONFIRMATION.NONE,
+  schedulable: true,
 
   policyHints() {
     // Kernel validates every read dir before this skill runs.

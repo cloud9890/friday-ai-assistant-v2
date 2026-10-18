@@ -24,6 +24,7 @@ export default {
   risk: RISK.MEDIUM,
   permissions: [PERMISSION.INDEX_READ],
   confirmation: CONFIRMATION.NONE,
+  schedulable: true,
 
   async execute(args) {
     const query = String(args.query || '').trim();

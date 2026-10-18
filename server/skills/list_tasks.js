@@ -20,6 +20,7 @@ export default {
   risk: RISK.SAFE,
   permissions: [PERMISSION.SCHEDULE_READ],
   confirmation: CONFIRMATION.NONE,
+  schedulable: true,
 
   execute() {
     const jobs = pendingJobs();

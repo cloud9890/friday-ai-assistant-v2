@@ -18,6 +18,7 @@ import { installOriginGuard } from './server/middleware/origin-guard.js';
 import { installApiAuth } from './server/middleware/api-auth.js';
 import { allFacts, recentFacts, lastEpisodes } from './server/memory/store.js';
 import { startScheduler, pendingJobs } from './server/lib/scheduler.js';
+import { runScheduledTask } from './server/lib/scheduled-task.js';
 import { notify, listNotifications, latestNotificationId } from './server/lib/notify.js';
 import { knowledgeStats } from './server/lib/knowledge.js';
 import { authorize } from './server/security/kernel.js';
@@ -68,6 +69,7 @@ function sanitizeHistory(messages) {
 
 /** A due job becomes a native toast + HUD notification + spoken line. */
 function deliverReminder(job) {
+  if (job.action && typeof job.action.skill === 'string') return runScheduledTask(job);
   return notify({ title: 'F.R.I.D.A.Y. REMINDER', body: job.text, speak: true });
 }
 
