@@ -72,3 +72,35 @@ test('deletes follow write rules but never allow removing the roots themselves',
   assert.equal(checkDeletePath('').ok, false);
   assert.equal(checkDeletePath(undefined).ok, false);
 });
+
+/* M4 (H6 bypass): a colon must never smuggle an ADS past the basename check. */
+test('windows alternate data streams are rejected', () => {
+  assert.equal(checkWritePath(path.join(desktopDir, 'report.txt:hidden')).ok, false);
+  assert.equal(checkWritePath(path.join(desktopDir, '.env:stream')).ok, false);
+  assert.equal(checkReadPath(path.join(desktopDir, 'notes.txt:$DATA')).ok, false);
+  assert.equal(checkDeletePath(path.join(desktopDir, 'a.txt:zone')).ok, false);
+  assert.equal(checkFileName('report.txt:hidden').ok, false);
+  assert.match(checkFileName('report.txt:hidden').reason, /alternate data stream/i);
+});
+
+test('a colon is still fine as the drive separator, and plain names still pass', () => {
+  assert.equal(checkWritePath(path.join(desktopDir, 'sub', 'a.txt')).ok, true);
+  assert.equal(checkReadPath(path.join(documentsDir, 'sub', 'b.md')).ok, true);
+  assert.equal(checkFileName('report.txt').ok, true);
+});
+
+/* H6: the read root is broad (home), so credential stores are denied by name. */
+test('credential stores inside an allowed root are denied (H6)', () => {
+  for (const name of ['.netrc', '.git-credentials', '.npmrc', '.gitconfig', '.pgpass', '.terraformrc']) {
+    assert.equal(checkReadPath(path.join(desktopDir, name)).ok, false, `${name} must be denied`);
+  }
+  assert.equal(checkReadPath(path.join(documentsDir, 'server.pem')).ok, false);
+  assert.equal(checkReadPath(path.join(documentsDir, 'private.key')).ok, false);
+  assert.equal(checkReadPath(path.join(desktopDir, 'cert.pfx')).ok, false);
+  assert.equal(checkReadPath(path.join(desktopDir, '.git', 'config')).ok, false);
+  assert.equal(checkReadPath(path.join(desktopDir, '.config', 'gh', 'hosts.yml')).ok, false);
+  assert.equal(checkWritePath(path.join(desktopDir, '.npmrc')).ok, false);
+  // ...while ordinary files next to them are unaffected.
+  assert.equal(checkReadPath(path.join(desktopDir, 'notes.md')).ok, true);
+  assert.equal(checkReadPath(path.join(desktopDir, 'project', 'config.json')).ok, true);
+});

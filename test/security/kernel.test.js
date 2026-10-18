@@ -133,3 +133,17 @@ test('resolveWriteTarget reproduces the save-file destination exactly', () => {
   assert.equal(resolveWriteTarget('notes.md', 'Desktop', 'md'), path.join(desktopDir, 'notes.md'));
   assert.equal(resolveWriteTarget('a/b:c*d', 'Desktop', 'txt'), path.join(desktopDir, 'a_b_c_d.txt'));
 });
+
+/* H4: the direct launcher must refuse a shell exactly like the macro branch. */
+test('open_desktop_app refuses to launch a shell (H4)', () => {
+  for (const appName of ['cmd', 'powershell', 'powershell.exe', 'cmd.exe', 'wscript', 'mshta', 'pwsh']) {
+    const res = authorize({ tool: 'open_desktop_app', args: { appName } });
+    assert.equal(res.decision, 'deny', `${appName} must be denied`);
+    assert.equal(res.resolvedApp, null);
+  }
+  // A recognised shell is refused for being a shell, not merely unknown.
+  assert.match(authorize({ tool: 'open_desktop_app', args: { appName: 'cmd' } }).reason, /shell/i);
+  assert.match(authorize({ tool: 'open_desktop_app', args: { appName: 'powershell' } }).reason, /shell/i);
+  // Ordinary apps are unaffected.
+  assert.equal(decisionOf({ tool: 'open_desktop_app', args: { appName: 'notepad' } }), 'allow');
+});

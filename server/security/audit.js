@@ -1,11 +1,13 @@
 /* ==========================================================================
    F.R.I.D.A.Y. // SECURITY — AUDIT TRAIL
    Phase 1 (S9). Every policy decision and every executed action is recorded as
-   one JSON line, with secrets redacted before they ever reach the file.
+   one JSON line. Secrets are redacted, and event targets are stored only as
+   hashes, so nothing sensitive ever reaches the file (M10).
    ========================================================================== */
 
 import fs from 'fs';
 import path from 'path';
+import crypto from 'crypto';
 
 const AUDIT_DIR = path.resolve('data');
 const AUDIT_FILE = path.join(AUDIT_DIR, 'audit.jsonl');
@@ -58,6 +60,25 @@ export function redact(value, depth = 0) {
   return String(value);
 }
 
+/**
+ * Stable, non-reversible reference for an audit target.
+ *
+ * M10: the trail used to persist raw user queries, file paths and app targets
+ * in cleartext on disk. Events only need to be *correlatable*, so the cleartext
+ * is replaced by a truncated SHA-256. `null` stays `null` so empty targets are
+ * still distinguishable from hashed ones.
+ *
+ * @param {*} value
+ * @returns {string|null}
+ */
+export function hashTarget(value) {
+  if (value === undefined || value === null) return null;
+  const text = typeof value === 'string' ? value : JSON.stringify(value);
+  if (!text) return null;
+  const digest = crypto.createHash('sha256').update(text).digest('hex').slice(0, 16);
+  return `sha256:${digest}`;
+}
+
 function ensureDir() {
   try {
     if (!fs.existsSync(AUDIT_DIR)) fs.mkdirSync(AUDIT_DIR, { recursive: true });
@@ -91,7 +112,7 @@ export function auditEvent(event = {}) {
       risk: event.risk || null,
       decision: event.decision || null,
       reason: event.reason ? redactString(String(event.reason)) : null,
-      target: event.target === undefined ? null : redact(event.target),
+      target: hashTarget(event.target),
       outcome: event.outcome || null,
       durationMs: typeof event.durationMs === 'number' ? event.durationMs : null,
       taskId: event.taskId || null

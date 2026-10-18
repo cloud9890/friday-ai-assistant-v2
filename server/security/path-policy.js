@@ -11,17 +11,37 @@ import { homeDir, desktopDir, documentsDir } from '../lib/paths.js';
 /** Roots FRIDAY may write into. */
 export const WRITE_ROOTS = [desktopDir, documentsDir];
 
-/** Roots FRIDAY may read/list. Home is intentionally excluded from writes. */
+/**
+ * Roots FRIDAY may read/list. Home is intentionally excluded from writes.
+ *
+ * H6: home is deliberately kept readable — the "search my files" feature
+ * depends on it — so the real boundary is the denylists below, not the root
+ * breadth. Every credential store that can be reached from home is denied by
+ * name/segment/extension, and a colon (ADS) can no longer smuggle a protected
+ * file past the basename check (M4). Revisit if a future phase narrows the
+ * read surface on purpose (see HANDOFF §4 H6).
+ */
 export const READ_ROOTS = [desktopDir, documentsDir, homeDir];
 
 // Names/segments that are never valid targets, even inside an allowed root.
 const SENSITIVE_SEGMENTS = [
-  '.ssh', '.aws', '.gnupg', '.azure', '.kube', '.docker',
+  '.ssh', '.aws', '.gnupg', '.azure', '.kube', '.docker', '.git',
+  '.config', '.password-store', '.mozilla', '.thunderbird', '.terraform.d',
   'appdata', 'windows', 'system32', 'program files', 'program files (x86)',
   'ntuser.dat', 'passwords', 'credentials', 'id_rsa', 'id_ed25519'
 ];
 
-const SENSITIVE_FILES = ['.env', '.env.local', '.env.production', 'cookies.sqlite', 'login data'];
+// Exact file names (lowercased) that hold credentials or history.
+const SENSITIVE_FILES = [
+  '.env', '.env.local', '.env.production', 'cookies.sqlite', 'login data',
+  '.netrc', '_netrc', '.git-credentials', '.gitconfig', '.npmrc', '.pypirc',
+  '.wgetrc', '.curlrc', '.my.cnf', '.pgpass', '.htpasswd', '.terraformrc',
+  'terraform.tfstate', 'unattend.xml', 'consolehost_history.txt',
+  '.bash_history', '.zsh_history', '.python_history', '.node_repl_history'
+];
+
+// Extensions that always mean "key material", wherever they live.
+const SENSITIVE_EXTENSIONS = ['.pem', '.key', '.pfx', '.p12', '.keystore', '.jks'];
 
 function normalize(p) {
   return path.resolve(p).replace(/[\\/]+$/, '').toLowerCase();
@@ -33,13 +53,26 @@ function isInside(child, root) {
   return c === r || c.startsWith(r + path.sep.toLowerCase()) || c.startsWith(r + '/');
 }
 
+/**
+ * Rejects Windows Alternate Data Streams. A drive-qualified path may carry
+ * exactly one colon, immediately after the drive letter; any other colon
+ * (`secret.txt:hidden`, `name::$DATA`) is an ADS and is refused (M4). Without
+ * this, `C:\…\.env:stream` would sidestep the SENSITIVE_FILES basename check.
+ */
+function hasAlternateDataStream(target) {
+  const rest = /^[a-zA-Z]:/.test(target) ? target.slice(2) : target;
+  return rest.includes(':');
+}
+
 function hasSensitiveSegment(target) {
   const segments = normalize(target).split(/[\\/]/).filter(Boolean);
   for (const seg of segments) {
     if (SENSITIVE_SEGMENTS.includes(seg)) return seg;
   }
   const base = path.basename(target).toLowerCase();
-  return SENSITIVE_FILES.includes(base) ? base : null;
+  if (SENSITIVE_FILES.includes(base)) return base;
+  const ext = path.extname(base);
+  return SENSITIVE_EXTENSIONS.includes(ext) ? base : null;
 }
 
 /**
@@ -50,6 +83,7 @@ export function checkWritePath(target) {
   if (typeof target !== 'string' || !target.trim()) return { ok: false, reason: 'path required' };
   if (target.includes('\0')) return { ok: false, reason: 'invalid path' };
   if (/^\\\\/.test(target)) return { ok: false, reason: 'UNC paths are not allowed' };
+  if (hasAlternateDataStream(target)) return { ok: false, reason: 'alternate data streams are not allowed' };
 
   const resolved = path.resolve(target);
   if (!path.isAbsolute(resolved)) return { ok: false, reason: 'path must be absolute' };
@@ -71,6 +105,7 @@ export function checkReadPath(target) {
   if (typeof target !== 'string' || !target.trim()) return { ok: false, reason: 'path required' };
   if (target.includes('\0')) return { ok: false, reason: 'invalid path' };
   if (/^\\\\/.test(target)) return { ok: false, reason: 'UNC paths are not allowed' };
+  if (hasAlternateDataStream(target)) return { ok: false, reason: 'alternate data streams are not allowed' };
 
   const resolved = path.resolve(target);
   const sensitive = hasSensitiveSegment(resolved);
@@ -106,6 +141,7 @@ export function checkFileName(name) {
   if (/[\\/]/.test(name)) return { ok: false, reason: 'fileName must not contain path separators' };
   if (name.includes('..')) return { ok: false, reason: 'fileName must not contain ..' };
   if (name.includes('\0')) return { ok: false, reason: 'invalid fileName' };
+  if (name.includes(':')) return { ok: false, reason: 'fileName must not contain ":" (alternate data stream)' };
   if (/^[.]+$/.test(name)) return { ok: false, reason: 'invalid fileName' };
   return { ok: true };
 }

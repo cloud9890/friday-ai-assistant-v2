@@ -32,6 +32,11 @@ function checkPermission(permission, args, tool) {
       if (args.appName !== undefined) {
         const app = resolveApp(args.appName);
         if (!app.ok) return { reason: app.reason };
+        // H4: a launcher must not hand the model a shell. The macro branch has
+        // always refused these; the direct-launch branch did not.
+        if (app.sensitive || SENSITIVE_EXECUTABLES.has(String(app.target || '').toLowerCase())) {
+          return { reason: `launching a shell (${app.target}) is not allowed` };
+        }
         args.__resolvedApp = app.target;
       }
       return null;

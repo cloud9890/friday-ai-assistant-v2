@@ -2,7 +2,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
-import { redact, auditFilePath } from '../../server/security/audit.js';
+import { redact, hashTarget, auditFilePath } from '../../server/security/audit.js';
 
 test('credential-looking keys are redacted at any depth', () => {
   const out = redact({
@@ -52,4 +52,21 @@ test('the audit file lives under data/ and is gitignored', () => {
   assert.match(auditFilePath().replace(/\\/g, '/'), /\/data\/audit\.jsonl$/);
   const ignore = fs.readFileSync('C:/Users/YASH/friday-ai-assistant/.gitignore', 'utf8');
   assert.match(ignore, /^data\/$/m);
+});
+
+/* M10: targets are correlatable without persisting the cleartext on disk. */
+test('audit targets are stored as stable hashes, never cleartext (M10)', () => {
+  const query = 'my bank statement password is hunter2';
+  const hash = hashTarget(query);
+
+  assert.match(hash, /^sha256:[0-9a-f]{16}$/);
+  assert.doesNotMatch(hash, /hunter2/);
+  assert.doesNotMatch(hash, /bank/);
+  assert.equal(hashTarget(query), hash, 'the same target must hash the same way');
+  assert.notEqual(hashTarget(`${query} `), hash);
+
+  assert.equal(hashTarget(null), null);
+  assert.equal(hashTarget(undefined), null);
+  assert.equal(hashTarget(''), null);
+  assert.doesNotThrow(() => hashTarget({ nested: { apiKey: 'gsk_livevalue123456789' } }));
 });
