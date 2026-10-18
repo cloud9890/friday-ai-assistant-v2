@@ -13,6 +13,8 @@
   "dependencies": {
     "@formkit/auto-animate": "^0.10.0",
     "docx": "^8.5.0",
+    "mammoth": "^1.13.0",
+    "pdf-parse": "^1.1.1",
     "puppeteer": "^24.43.1"
   },
   "devDependencies": {

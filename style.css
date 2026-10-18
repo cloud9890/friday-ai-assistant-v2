@@ -2209,6 +2209,48 @@ body.stark-theme {
   white-space: nowrap;
 }
 
+/* --- Knowledge base card (right panel) -------------------------------------- */
+.knowledge-list {
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  font-family: var(--font-mono);
+}
+
+.kn-item {
+  display: flex;
+  gap: 0.6rem;
+  align-items: baseline;
+  justify-content: space-between;
+  padding: 0.32rem 0.5rem;
+  margin-bottom: 0.3rem;
+  background: rgba(0, 240, 255, 0.03);
+  border-left: 2px solid rgba(120, 255, 210, 0.4);
+  font-size: 0.68rem;
+  animation: report-row-in 0.3s ease;
+}
+
+.kn-item.empty {
+  background: none;
+  border-left: none;
+  color: var(--text-dim);
+  justify-content: center;
+}
+
+.kn-path {
+  color: var(--cyan-primary);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.kn-meta {
+  color: var(--gold-accent);
+  font-size: 0.58rem;
+  flex-shrink: 0;
+  font-variant-numeric: tabular-nums;
+}
+
 /* --- Proactive toasts: reminders + notifications --------------------------- */
 .notify-toasts {
   position: fixed;

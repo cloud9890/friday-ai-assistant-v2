@@ -26,7 +26,9 @@ export const ENDPOINT_TO_TOOL = {
   '/api/web-agent': 'inspect_and_interact_web',
   '/api/play-media': 'play_media',
   '/api/execute-macro': 'execute_macro',
-  '/api/vision': 'analyze_screen'
+  '/api/vision': 'analyze_screen',
+  '/api/knowledge/index': 'index_folder',
+  '/api/knowledge/search': 'search_knowledge'
 };
 
 /** Endpoints that carry no authority and therefore skip policy evaluation. */

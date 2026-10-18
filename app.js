@@ -62,6 +62,8 @@ class FridayApp {
     setInterval(() => this.refreshMemoryCore(), 20000);
     this.refreshTasks();
     setInterval(() => this.refreshTasks(), 15000);
+    this.refreshKnowledge();
+    setInterval(() => this.refreshKnowledge(), 30000);
     this.pollNotifications();
     setInterval(() => this.pollNotifications(), 5000);
 
@@ -128,6 +130,9 @@ class FridayApp {
     // Scheduled tasks + proactive toasts
     this.taskCount = document.getElementById('taskCount');
     this.taskList = document.getElementById('taskList');
+    this.knowledgeCount = document.getElementById('knowledgeCount');
+    this.knowledgeList = document.getElementById('knowledgeList');
+    this.btnIndexKnowledge = document.getElementById('btnIndexKnowledge');
     this.notifyToasts = document.getElementById('notifyToasts');
 
     // Checks & overlay
@@ -190,6 +195,9 @@ class FridayApp {
     });
 
     this.btnRunDiagnostics.addEventListener('click', () => this.diagnosticsManager.run());
+    if (this.btnIndexKnowledge) {
+      this.btnIndexKnowledge.addEventListener('click', () => this.indexKnowledge());
+    }
     this.btnDismissProtocol.addEventListener('click', () => {
       soundFX.playClick();
       this.protocolOverlay.classList.remove('active');
@@ -378,6 +386,77 @@ class FridayApp {
         this.memoryList.appendChild(li);
       }
     } catch (e) { /* the memory panel is an optional surface */ }
+  }
+
+  /* ------------------------------------------------------------------------
+     KNOWLEDGE BASE (Phase B)
+     The server owns the index; this card only reports it. Re-indexing is a
+     real capability and runs through the same policy kernel the agent uses.
+     ------------------------------------------------------------------------ */
+  async refreshKnowledge() {
+    if (!this.knowledgeList) return;
+    try {
+      const res = await fetch('/api/knowledge/stats');
+      const data = await res.json();
+      if (this.knowledgeCount) {
+        const n = data.sources || 0;
+        this.knowledgeCount.textContent = `${n} SOURCE${n === 1 ? '' : 'S'}`;
+      }
+      this.knowledgeList.innerHTML = '';
+      const rows = (data.top || []).slice(0, 4);
+      if (rows.length === 0) {
+        const li = document.createElement('li');
+        li.className = 'kn-item empty';
+        li.textContent = 'No documents indexed — ask me to index a folder, Boss.';
+        this.knowledgeList.appendChild(li);
+        return;
+      }
+      for (const row of rows) {
+        const li = document.createElement('li');
+        li.className = 'kn-item';
+        const name = document.createElement('span');
+        name.className = 'kn-path';
+        name.textContent = String(row.path || '').split(/[\\/]/).slice(-2).join('/');
+        name.title = row.path || '';
+        const meta = document.createElement('span');
+        meta.className = 'kn-meta';
+        meta.textContent = `${row.chunks} CHUNK${row.chunks === 1 ? '' : 'S'}`;
+        li.appendChild(name);
+        li.appendChild(meta);
+        this.knowledgeList.appendChild(li);
+      }
+      if (data.embedder) {
+        const li = document.createElement('li');
+        li.className = 'kn-item empty';
+        li.textContent = `${data.chunks || 0} chunks · ${data.embedder}${data.lastIndexed ? ` · ${new Date(data.lastIndexed).toLocaleString([], { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}` : ''}`;
+        this.knowledgeList.appendChild(li);
+      }
+    } catch (e) { /* the knowledge panel is an optional surface */ }
+  }
+
+  async indexKnowledge() {
+    if (!this.btnIndexKnowledge || this.btnIndexKnowledge.disabled) return;
+    soundFX.playClick();
+    this.btnIndexKnowledge.disabled = true;
+    this.logEvent('Indexing documents…');
+    try {
+      const res = await fetch('/api/knowledge/index', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ path: 'documents' })
+      });
+      const data = await res.json();
+      const message = data.reply || data.error || 'Indexing finished.';
+      this.uiManager.appendChatMessage('friday', String(message));
+      this.voiceEngine.speak(String(message));
+      this.logEvent('Knowledge index updated');
+      await this.refreshKnowledge();
+    } catch (e) {
+      this.logEvent('Indexing failed');
+      this.uiManager.appendChatMessage('friday', `I could not index your documents, Boss: ${e.message}`);
+    } finally {
+      this.btnIndexKnowledge.disabled = false;
+    }
   }
 
   /* Schedule card: the reminders F.R.I.D.A.Y. will fire, soonest first. */
@@ -600,6 +679,7 @@ class FridayApp {
     this.voiceEngine.speak(reply);
     this.refreshMemoryCore();
     this.refreshTasks();
+    this.refreshKnowledge();
   }
 
   /* Friendly HUD labels for tool names — the raw skill name is plumbing. */
@@ -628,7 +708,10 @@ class FridayApp {
     set_reminder: 'REMINDER SET',
     list_tasks: 'SCHEDULE READ',
     cancel_task: 'REMINDER CANCEL',
-    send_notification: 'NOTIFY'
+    send_notification: 'NOTIFY',
+    index_folder: 'KNOWLEDGE INDEX',
+    search_knowledge: 'KNOWLEDGE SEARCH',
+    ask_my_document: 'DOCUMENT Q&A'
   };
 
   displayActions(actions) {

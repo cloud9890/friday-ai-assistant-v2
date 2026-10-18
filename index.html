@@ -302,6 +302,24 @@
         </div>
       </section>
 
+      <!-- Knowledge base: the user's own indexed documents, live -->
+      <section class="stark-card knowledge-card">
+        <div class="card-header">
+          <span class="card-icon"><svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 19.5V5a2 2 0 0 1 2-2h11a1 1 0 0 1 1 1v15"/><path d="M6 17h12a1 1 0 0 1 1 1v1H7a1 1 0 0 1-1-1z"/><line x1="8" y1="7" x2="14" y2="7"/><line x1="8" y1="10" x2="12" y2="10"/></svg></span>
+          <h2>KNOWLEDGE BASE</h2>
+          <span class="card-tag" id="knowledgeCount">0 SOURCES</span>
+        </div>
+        <div class="card-body">
+          <ul class="knowledge-list" id="knowledgeList">
+            <li class="kn-item empty">No documents indexed — ask me to index a folder, Boss.</li>
+          </ul>
+          <button class="protocol-btn" id="btnIndexKnowledge" style="margin-top: 0.5rem;">
+            <span class="p-code">INDEX</span>
+            <span class="p-name">RE-INDEX DOCUMENTS</span>
+          </button>
+        </div>
+      </section>
+
       <!-- Tasks: F.R.I.D.A.Y.'s pending reminders, live -->
       <section class="stark-card tasks-card">
         <div class="card-header">

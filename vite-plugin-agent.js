@@ -19,6 +19,9 @@ import { installApiAuth } from './server/middleware/api-auth.js';
 import { allFacts, recentFacts, lastEpisodes } from './server/memory/store.js';
 import { startScheduler, pendingJobs } from './server/lib/scheduler.js';
 import { notify, listNotifications, latestNotificationId } from './server/lib/notify.js';
+import { knowledgeStats } from './server/lib/knowledge.js';
+import { authorize } from './server/security/kernel.js';
+import { policyHints, executeSkill } from './server/skills/registry.js';
 
 const MAX_MESSAGES = 40;
 const MAX_CONTENT_CHARS = 8000;
@@ -66,6 +69,25 @@ function sanitizeHistory(messages) {
 /** A due job becomes a native toast + HUD notification + spoken line. */
 function deliverReminder(job) {
   return notify({ title: 'F.R.I.D.A.Y. REMINDER', body: job.text, speak: true });
+}
+
+/**
+ * Runs a knowledge capability through the SAME kernel the agent uses — the
+ * endpoint never executes a skill the policy has not authorised. Returns a
+ * JSON reply; the HUD shows it as an action note.
+ */
+async function runAuthorisedSkill(name, args, res) {
+  const hints = policyHints(name, args);
+  const decision = authorize({ tool: name, args, actor: 'ui', ...hints });
+  if (decision.decision !== 'allow') {
+    return sendJson(res, 403, { error: decision.reason || 'denied by policy' });
+  }
+  try {
+    const reply = await executeSkill(name, args, hints, {});
+    return sendJson(res, 200, { reply: String(reply ?? '') });
+  } catch (e) {
+    return sendJson(res, 500, { error: e.message });
+  }
 }
 
 export default function fridayAgentPlugin(env = {}) {
@@ -149,6 +171,27 @@ export default function fridayAgentPlugin(env = {}) {
         count: pending.length,
         tasks: pending.map(j => ({ id: j.id, text: j.text, at: j.at, kind: j.kind }))
       });
+    });
+
+    // KNOWLEDGE base: read-only stats for the HUD card.
+    server.middlewares.use('/api/knowledge/stats', (req, res) => {
+      try { sendJson(res, 200, knowledgeStats()); }
+      catch (e) { sendJson(res, 500, { error: e.message }); }
+    });
+
+    // KNOWLEDGE indexing + search. Both run through the policy kernel.
+    server.middlewares.use('/api/knowledge/index', async (req, res) => {
+      if (req.method !== 'POST') return sendJson(res, 405, { error: 'Method not allowed' });
+      let body;
+      try { body = await readJsonBody(req); } catch (e) { return sendJson(res, 400, { error: e.message }); }
+      return runAuthorisedSkill('index_folder', { path: body.path || 'documents' }, res);
+    });
+
+    server.middlewares.use('/api/knowledge/search', async (req, res) => {
+      if (req.method !== 'POST') return sendJson(res, 405, { error: 'Method not allowed' });
+      let body;
+      try { body = await readJsonBody(req); } catch (e) { return sendJson(res, 400, { error: e.message }); }
+      return runAuthorisedSkill('search_knowledge', { query: body.query, topK: body.topK }, res);
     });
 
     // Proactive delivery. With no `since` the HUD is seeding (or a fresh

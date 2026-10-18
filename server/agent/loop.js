@@ -163,6 +163,17 @@ function intentBooster(userText) {
   if (isRead) {
     return { role: 'system', content: 'Directive: the user asks about your stored memory. Call the recall_facts tool with a relevant query and report the results. Do not answer from text alone.' };
   }
+
+  // --- Knowledge base (the user's own documents, indexed locally) ---
+  const isIndex = /\b(index|re-?index)\b[^.]*\b(documents?|files?|notes?|folder|knowledge)\b/.test(t);
+  const isKnowledgeAsk = /\b(what did i (write|say|note)|search (my|the) (notes|documents|files)|look (in|through) my (notes|documents)|find .* in my (notes|documents)|ask my (document|notes?|files?))\b/.test(t);
+
+  if (isIndex) {
+    return { role: 'system', content: 'Directive: the user wants their files indexed into the local knowledge base. Call index_folder with a "path" ("documents", "desktop" or "home") and then confirm how many files were indexed. Do not answer from text alone.' };
+  }
+  if (isKnowledgeAsk) {
+    return { role: 'system', content: 'Directive: the user is asking about their own indexed documents. Call search_knowledge with the topic, then answer using the returned passages and cite the file and line. If the index is empty or nothing matches, say so and offer to index the folder. Do not invent content.' };
+  }
   return null;
 }
 
