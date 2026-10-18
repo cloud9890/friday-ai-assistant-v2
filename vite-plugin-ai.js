@@ -5,6 +5,7 @@
    same-origin routes, so no secret can leak into the client bundle:
      POST /api/chat    -> { messages, max_tokens, temperature } -> { reply, provider, model }
      POST /api/tts     -> { text }                               -> audio/mpeg
+     POST /api/stt     -> raw audio body (webm/opus or wav)      -> { text }
      GET  /api/health  -> { ok, provider, configured, model, tts }
    Completions run through the shared provider engine (server/lib/providers.js),
    which also powers the agent loop with automatic cloud<->local fallback.
@@ -12,8 +13,10 @@
 
 import { createProviders, createChat } from './server/lib/providers.js';
 import { createOriginGuard } from './server/middleware/origin-guard.js';
+import { installApiAuth } from './server/middleware/api-auth.js';
 
 const ELEVENLABS_URL = 'https://api.elevenlabs.io/v1/text-to-speech';
+const GROQ_STT_URL = 'https://api.groq.com/openai/v1/audio/transcriptions';
 
 function sendJson(res, statusCode, payload) {
   res.statusCode = statusCode;
@@ -39,6 +42,20 @@ function readJsonBody(req, limitBytes = 2_000_000) {
   });
 }
 
+function readRawBody(req, limitBytes = 12_000_000) {
+  return new Promise((resolve, reject) => {
+    let size = 0;
+    const chunks = [];
+    req.on('data', (chunk) => {
+      size += chunk.length;
+      if (size > limitBytes) { reject(new Error('Request body too large')); req.destroy(); return; }
+      chunks.push(chunk);
+    });
+    req.on('error', reject);
+    req.on('end', () => resolve(Buffer.concat(chunks)));
+  });
+}
+
 export default function fridayAiPlugin(env = {}) {
   const { PROVIDERS, providerOrder, primaryProvider, fallbackProvider } = createProviders(env);
   const chat = createChat(env);
@@ -46,6 +63,11 @@ export default function fridayAiPlugin(env = {}) {
   const elevenKey = (env.ELEVENLABS_API_KEY || '').trim();
   const elevenVoice = env.ELEVENLABS_VOICE_ID || 'EXAVITQu4vr4xnSDxMaL';
   const elevenModel = env.ELEVENLABS_MODEL || 'eleven_multilingual_v2';
+
+  // Speech-to-text rides on a Groq key, because OpenRouter exposes no audio
+  // transcription endpoint. Optional: voice input degrades if it is absent.
+  const sttKey = (env.GROQ_API_KEY || '').trim();
+  const sttModel = env.STT_MODEL || 'whisper-large-v3-turbo';
 
   async function handleHealth(req, res) {
     sendJson(res, 200, {
@@ -55,7 +77,8 @@ export default function fridayAiPlugin(env = {}) {
       configured: PROVIDERS[primaryProvider].available,
       fallbackConfigured: PROVIDERS[fallbackProvider].available,
       model: PROVIDERS[primaryProvider].model,
-      tts: Boolean(elevenKey)
+      tts: Boolean(elevenKey),
+      stt: Boolean(sttKey)
     });
   }
 
@@ -112,11 +135,43 @@ export default function fridayAiPlugin(env = {}) {
     }
   }
 
+  async function handleStt(req, res) {
+    if (req.method !== 'POST') return sendJson(res, 405, { error: 'Method not allowed' });
+    if (!sttKey) return sendJson(res, 503, { error: 'GROQ_API_KEY is not configured on the server' });
+
+    let audio;
+    try { audio = await readRawBody(req); } catch (e) { return sendJson(res, 400, { error: e.message }); }
+    if (!audio.length) return sendJson(res, 400, { error: 'audio body required' });
+
+    const mime = (req.headers['content-type'] || 'audio/webm').split(';')[0].trim();
+    try {
+      const form = new FormData();
+      form.append('file', new Blob([audio], { type: mime }), mime.includes('wav') ? 'speech.wav' : 'speech.webm');
+      form.append('model', sttModel);
+      form.append('temperature', '0');
+      const upstream = await fetch(GROQ_STT_URL, {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${sttKey}` },
+        body: form
+      });
+      const payload = await upstream.json().catch(() => ({}));
+      if (!upstream.ok) {
+        const detail = payload.error && payload.error.message ? payload.error.message : '';
+        return sendJson(res, upstream.status, { error: detail || `Groq STT returned HTTP ${upstream.status}` });
+      }
+      return sendJson(res, 200, { text: String(payload.text || '').trim() });
+    } catch (e) {
+      return sendJson(res, 502, { error: `STT request failed: ${e.message}` });
+    }
+  }
+
   function attach(server) {
     server.middlewares.use(createOriginGuard());
+    installApiAuth(server); // local session cookie in front of every /api/* route
     server.middlewares.use('/api/health', handleHealth);
     server.middlewares.use('/api/chat', handleChat);
     server.middlewares.use('/api/tts', handleTts);
+    server.middlewares.use('/api/stt', handleStt);
   }
 
   return {

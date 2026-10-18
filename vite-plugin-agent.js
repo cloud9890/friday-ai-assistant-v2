@@ -15,6 +15,7 @@ import { createChat } from './server/lib/providers.js';
 import { runAgentTurn } from './server/agent/loop.js';
 import { primeStartAppsCache } from './server/lib/app-launcher.js';
 import { createOriginGuard } from './server/middleware/origin-guard.js';
+import { installApiAuth } from './server/middleware/api-auth.js';
 import { allFacts, lastEpisodes } from './server/memory/store.js';
 
 const MAX_MESSAGES = 40;
@@ -67,9 +68,17 @@ export default function fridayAgentPlugin(env = {}) {
       return sendJson(res, 400, { error: 'messages array required' });
     }
 
+    // A client-side stop ("Friday, stop") aborts the fetch; mirror it here so
+    // the loop halts server-side instead of running to completion (C5).
+    const controller = new AbortController();
+    const onClose = () => controller.abort();
+    req.on('close', onClose);
+    res.on('close', onClose);
+
     const params = {
       chat,
       messages,
+      signal: controller.signal,
       confirmToken: typeof body.confirmToken === 'string' ? body.confirmToken : null,
       cancelToken: typeof body.cancelToken === 'string' ? body.cancelToken : null,
       screenFrame: typeof body.screenFrame === 'string' && body.screenFrame.startsWith('data:image/')
@@ -103,6 +112,7 @@ export default function fridayAgentPlugin(env = {}) {
 
   function attach(server) {
     server.middlewares.use(createOriginGuard());
+    installApiAuth(server); // local session cookie in front of every /api/* route
     primeStartAppsCache(); // resolve installed/Store app names for the launch policy
     server.middlewares.use('/api/agent', handleAgent);
 

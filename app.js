@@ -221,7 +221,7 @@ class FridayApp {
     } else if (health.ok && !health.configured) {
       const fallbackNote = health.fallbackConfigured
         ? 'Running on my local backup model for now, Boss.'
-        : "I'm running without my AI core, Boss. Set GROQ_API_KEY in .env or start Ollama to bring me fully online.";
+        : "I'm running without my AI core, Boss. Set OPENROUTER_API_KEY in .env or start Ollama to bring me fully online.";
       this.uiManager.appendChatMessage('friday', fallbackNote);
       this.logEvent('Cloud link not configured');
     } else {
@@ -235,13 +235,13 @@ class FridayApp {
     if (this.footerStatus) this.footerStatus.textContent = `STATUS: ${health.ok ? '200 OK' : 'LINK DOWN'}`;
 
     // Badge reflects the actual serving provider:
-    //   groq (cloud)          -> CLOUD LINK
+    //   openrouter (cloud)    -> CLOUD LINK
     //   ollama (local)        -> LOCAL MODEL
     //   neither               -> OFFLINE
     let label = 'F.R.I.D.A.Y. OFFLINE';
     let cls = 'status-offline';
     if (health.ok && health.configured) {
-      const isCloud = health.provider === 'groq';
+      const isCloud = health.provider !== 'ollama';
       label = isCloud ? 'F.R.I.D.A.Y. CLOUD LINK' : 'F.R.I.D.A.Y. LOCAL MODEL';
       cls = isCloud ? 'status-online' : 'status-local';
     } else if (health.ok && !health.configured && health.fallbackConfigured) { label = 'F.R.I.D.A.Y. LOCAL MODEL'; cls = 'status-local'; }

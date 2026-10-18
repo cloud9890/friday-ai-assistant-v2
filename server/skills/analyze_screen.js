@@ -2,7 +2,7 @@
    F.R.I.D.A.Y. // SKILL — ANALYZE SCREEN (vision)
    The frame is captured by the HUD (getDisplayMedia) and rides along with the
    agent request while screen sharing is active; here it is analysed by the
-   Groq vision proxy.
+   vision proxy (OpenRouter primary, Groq fallback).
    ========================================================================== */
 
 import { RISK, CONFIRMATION, PERMISSION } from '../security/risk.js';

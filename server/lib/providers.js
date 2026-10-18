@@ -1,26 +1,36 @@
 /* ==========================================================================
-   F.R.I.D.A.Y. // SERVER LIB — MODEL PROVIDERS (Groq / Ollama)
-   Shared completion engine used by /api/chat and the agent loop. API keys
+   F.R.I.D.A.Y. // SERVER LIB — MODEL PROVIDERS (cloud / Ollama)
+   Shared completion engine used by /api/chat and the agent loop. The cloud
+   provider is any OpenAI-compatible endpoint (default: OpenRouter); API keys
    never leave this module. The preferred provider is tried first; on any
    failure the alternate is attempted so an outage never breaks the flow.
    Pass onDelta(text) to stream tokens as they arrive; omit it for a
    buffered completion. Both paths normalise to one OpenAI-style message.
    ========================================================================== */
 
-const GROQ_URL = 'https://api.groq.com/openai/v1/chat/completions';
+// Any OpenAI-compatible chat-completions endpoint works here. OpenRouter is the
+// default cloud link; point OPENROUTER_BASE_URL elsewhere (Groq, Together, …) to
+// switch, as long as the endpoint speaks the OpenAI chat-completions schema.
+const DEFAULT_CLOUD_BASE = 'https://openrouter.ai/api/v1';
+const DEFAULT_CLOUD_MODEL = 'nvidia/nemotron-3-ultra-550b-a55b:free';
 
 export function createProviders(env = {}) {
-  const primaryProvider = String(env.AI_PROVIDER || 'groq').toLowerCase() === 'ollama' ? 'ollama' : 'groq';
-  const groqKey = (env.GROQ_API_KEY || '').trim();
-  const groqModel = env.GROQ_MODEL || 'llama-3.3-70b-versatile';
+  // Local-first only when explicitly requested; otherwise cloud-first.
+  const wantsLocalFirst = String(env.AI_PROVIDER || '').toLowerCase() === 'ollama';
+
+  const cloudBase = String(env.OPENROUTER_BASE_URL || env.CLOUD_BASE_URL || DEFAULT_CLOUD_BASE).replace(/\/+$/, '');
+  const cloudKey = String(env.OPENROUTER_API_KEY || env.CLOUD_API_KEY || '').trim();
+  const cloudModel = env.OPENROUTER_MODEL || env.CLOUD_MODEL || DEFAULT_CLOUD_MODEL;
+  const cloudLabel = String(env.CLOUD_PROVIDER || 'openrouter').toLowerCase();
+
   const ollamaBase = (env.OLLAMA_BASE_URL || 'http://localhost:11434').replace(/\/+$/, '');
   const ollamaModel = env.OLLAMA_MODEL || 'llama3.1';
 
   const PROVIDERS = {
-    groq: {
-      label: 'groq',
-      model: groqModel,
-      available: Boolean(groqKey),
+    [cloudLabel]: {
+      label: cloudLabel,
+      model: cloudModel,
+      available: Boolean(cloudKey),
       run
     },
     ollama: {
@@ -32,44 +42,43 @@ export function createProviders(env = {}) {
   };
 
   async function run({ messages, tools, max_tokens, temperature, onDelta }) {
-    const isGroq = this.label === 'groq';
+    const isCloud = this.label === cloudLabel;
+    const endpoint = isCloud ? `${cloudBase}/chat/completions` : `${ollamaBase}/api/chat`;
+    const headers = {
+      'Content-Type': 'application/json',
+      // OpenRouter attribution header; harmless on other OpenAI-compatible hosts.
+      ...(isCloud ? { Authorization: `Bearer ${cloudKey}`, 'X-Title': 'F.R.I.D.A.Y.' } : {})
+    };
     const body = {
-      model: isGroq ? groqModel : ollamaModel,
+      model: isCloud ? cloudModel : ollamaModel,
       messages,
       max_tokens,
       temperature
     };
-    if (tools && tools.length > 0) { body.tools = tools; if (isGroq) body.tool_choice = 'auto'; }
+    if (tools && tools.length > 0) { body.tools = tools; if (isCloud) body.tool_choice = 'auto'; }
 
     if (!onDelta) {
       body.stream = false;
-      if (isGroq) body.stream = undefined; // Groq prefers the field absent
-      const upstream = await fetch(isGroq ? GROQ_URL : `${ollamaBase}/api/chat`, {
+      const upstream = await fetch(endpoint, {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          ...(isGroq ? { Authorization: `Bearer ${groqKey}` } : {})
-        },
+        headers,
         body: JSON.stringify(body),
-        signal: AbortSignal.timeout(isGroq ? 60000 : 90000)
+        signal: AbortSignal.timeout(90000)
       });
       const data = await upstream.json().catch(() => ({}));
       if (!upstream.ok) throw new Error(data?.error?.message || data?.error || `HTTP ${upstream.status}`);
-      const message = isGroq ? data?.choices?.[0]?.message : data?.message;
+      const message = isCloud ? data?.choices?.[0]?.message : data?.message;
       if (!message) throw new Error(`${this.label} returned an empty completion`);
       return normalizeMessage(message, this.label);
     }
 
     // ---- Streaming path ------------------------------------------------
     body.stream = true;
-    const upstream = await fetch(isGroq ? GROQ_URL : `${ollamaBase}/api/chat`, {
+    const upstream = await fetch(endpoint, {
       method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        ...(isGroq ? { Authorization: `Bearer ${groqKey}` } : {})
-      },
+      headers,
       body: JSON.stringify(body),
-      signal: AbortSignal.timeout(isGroq ? 120000 : 150000)
+      signal: AbortSignal.timeout(isCloud ? 180000 : 150000)
     });
     if (!upstream.ok) {
       const errText = await upstream.text().catch(() => '');
@@ -90,8 +99,10 @@ export function createProviders(env = {}) {
       if (done) break;
       buffer += decoder.decode(value, { stream: true });
 
-      if (isGroq) {
-        // SSE: lines of "data: {...}", terminated by "data: [DONE]".
+      if (isCloud) {
+        // SSE: lines of "data: {...}", terminated by "data: [DONE]". Reasoning
+        // models (e.g. OpenRouter reasoning models) also emit delta.reasoning,
+        // which is deliberately ignored — it is not part of the reply.
         const lines = buffer.split('\n');
         buffer = lines.pop() || '';
         for (const line of lines) {
@@ -153,9 +164,15 @@ export function createProviders(env = {}) {
   }
 
   // Cloud-first unless the operator explicitly prefers the local model.
-  const providerOrder = primaryProvider === 'ollama' ? ['ollama', 'groq'] : ['groq', 'ollama'];
+  const providerOrder = wantsLocalFirst ? ['ollama', cloudLabel] : [cloudLabel, 'ollama'];
 
-  return { PROVIDERS, providerOrder, primaryProvider, fallbackProvider: providerOrder[1] };
+  return {
+    PROVIDERS,
+    providerOrder,
+    primaryProvider: providerOrder[0],
+    fallbackProvider: providerOrder[1],
+    cloudLabel
+  };
 }
 
 function normalizeMessage(message, label) {

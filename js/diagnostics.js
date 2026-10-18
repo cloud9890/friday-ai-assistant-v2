@@ -28,7 +28,7 @@ export class DiagnosticsManager {
     // state so the report can colour-code it. Provider names stay out of the
     // report — the HUD-level distinction is cloud vs local backup.
     if (health.ok && health.configured) {
-      const kind = health.provider === 'groq' ? 'CLOUD' : 'LOCAL';
+      const kind = health.provider === 'ollama' ? 'LOCAL' : 'CLOUD';
       const backup = health.fallbackConfigured ? ' · BACKUP READY' : '';
       rows.push({ label: 'NEURAL LINK', value: `ONLINE · ${kind}${backup}`, state: 'ok' });
     } else if (health.ok) {

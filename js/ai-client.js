@@ -23,7 +23,7 @@ async function postJson(path, payload, { signal, timeoutMs = 30000 } = {}) {
 
 /**
  * Send a conversation to the AI proxy and resolve with the reply plus the
- * provider that served it. Flow is CLOUD FIRST: Groq is always tried first
+ * provider that served it. Flow is CLOUD FIRST: the cloud provider (OpenRouter
  * and the proxy automatically falls back to the local Ollama model when the
  * cloud link fails, times out, or is unconfigured.
  * @param {Array<{role: string, content: string}>} messages

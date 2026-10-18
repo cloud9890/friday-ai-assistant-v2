@@ -10,7 +10,8 @@ says so instead of inventing data.
 ## What is real now
 
 - **AI replies** — same-origin `/api/agent` + `/api/chat` proxy (keys stay
-  server-side). **Flow: cloud first → local fallback** — **Groq** (cloud) is
+  server-side). **Flow: cloud first → local fallback** — the **cloud provider**
+  (**OpenRouter** by default; any OpenAI-compatible endpoint) is
   always tried first; if it is unreachable, times out, errors, or is
   unconfigured, the proxy automatically retries the **local Ollama model** in
   the same request so the conversation keeps flowing. The reply reports which
@@ -95,7 +96,10 @@ Desktop/Documents with traversal, UNC and sensitive-location rejection; only
 vetted applications can be launched; the web agent may only visit public
 http(s) hosts (SSRF-protected); every decision is appended to
 `data/audit.jsonl`; and `/api/*` rejects non-local Host headers and
-cross-site Origins. Deletion requires an explicit user confirmation in the UI
+cross-site Origins. Every `/api/*` request (other than the liveness route)
+also requires a local session cookie — an HttpOnly, `SameSite=Strict`
+`friday_sid` token issued to the same-origin UI when it loads. Deletion
+requires an explicit user confirmation in the UI
 before it executes. Policy regression tests: `npm test`.
 
 ## Setup
@@ -107,14 +111,20 @@ npm install
 Copy `.env.example` to `.env` and configure at least one provider:
 
 ```env
-AI_PROVIDER=groq
-GROQ_API_KEY=your_groq_api_key_here
+AI_PROVIDER=openrouter
+OPENROUTER_API_KEY=your_openrouter_api_key_here
+OPENROUTER_MODEL=nvidia/nemotron-3-ultra-550b-a55b:free
 
 # Optional ElevenLabs voice (else the browser voice is used)
 ELEVENLABS_API_KEY=your_elevenlabs_api_key_here
 ELEVENLABS_VOICE_ID=your_elevenlabs_voice_id_here
 
-# Or run fully local with Ollama instead of Groq
+# Optional: voice STT uses a Groq key (OpenRouter has no STT), and Groq is the
+# automatic fallback for vision. Vision's primary is OpenRouter, reusing
+# OPENROUTER_API_KEY — see Vision below.
+# GROQ_API_KEY=your_groq_api_key_here
+
+# Or run fully local with Ollama instead of the cloud link
 # AI_PROVIDER=ollama
 # OLLAMA_BASE_URL=http://localhost:11434
 ```
@@ -146,7 +156,7 @@ npm run preview
 | Route | Method | Purpose |
 |---|---|---|
 | `/api/agent` | POST | Agentic turn: model reasoning + kernel-gated tool execution |
-| `/api/chat` | POST | Plain chat completion (Groq / Ollama) |
+| `/api/chat` | POST | Plain chat completion (cloud / Ollama) |
 | `/api/tts` | POST | ElevenLabs speech audio (audio/mpeg) |
 | `/api/health` | GET | Provider status; also used to measure link latency |
 
@@ -172,6 +182,6 @@ server/agent/           ReAct loop, streaming, system prompt
 server/security/        Policy kernel, path/network/app policies, audit trail
 server/memory/          Persistent long-term memory (facts + episodes)
 server/web-agent/       Puppeteer browser automation engine
-server/lib/             Providers (Groq/Ollama), app launcher, docx writer, paths
+server/lib/             Providers (cloud/Ollama), app launcher, docx writer, paths
 test/                   Policy, registry and memory regression tests (npm test)
 ```
