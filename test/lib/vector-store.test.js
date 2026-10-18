@@ -15,7 +15,7 @@ process.chdir(scratch);
 
 const {
   indexSource, indexFiles, search, removeSource, sourcesUnder, stats,
-  loadManifest, manifestPath, sourceFilePath, indexDir, clearIndex
+  loadManifest, manifestPath, sourceFilePath, indexDir, sourcesDir, clearIndex
 } = await import('../../server/lib/vector-store.js');
 
 const embedder = createLocalEmbedder({ dim: 64 });
@@ -66,6 +66,8 @@ test('indexSource writes chunks to JSONL and records the manifest', async () => 
   assert.equal(manifest.embedder.id, 'local-hash-v1');
   assert.equal(manifest.sources[file.path].chunks, lines.length);
   assert.ok(fs.existsSync(manifestPath()));
+  assert.ok(sourceFilePath(file.path).startsWith(sourcesDir()), 'chunks live under data/index/sources');
+  assert.ok(manifestPath().startsWith(indexDir()), 'the manifest lives under data/index');
 });
 
 test('search ranks the passage that shares the topic', async () => {
