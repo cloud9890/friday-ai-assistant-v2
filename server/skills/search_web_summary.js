@@ -3,6 +3,7 @@
    ========================================================================== */
 
 import { RISK, CONFIRMATION, PERMISSION } from '../security/risk.js';
+import { safeFetch } from '../lib/safe-fetch.js';
 
 export default {
   name: 'search_web_summary',
@@ -17,7 +18,7 @@ export default {
   confirmation: CONFIRMATION.NONE,
 
   async execute(args, ctx) {
-    const fetchRes = await fetch(args.url, { headers: { 'User-Agent': 'Mozilla/5.0' }, signal: AbortSignal.timeout(15000) });
+    const fetchRes = await safeFetch(args.url, { timeoutMs: 15000 });
     const html = await fetchRes.text();
     const text = html.replace(/<script[^>]*>([\S\s]*?)<\/script>/gmi, '')
       .replace(/<style[^>]*>([\S\s]*?)<\/style>/gmi, '')

@@ -2,6 +2,7 @@
 
 import { exec } from 'child_process';
 import { desktopDir, documentsDir } from '../lib/paths.js';
+import { safeFetch } from '../lib/safe-fetch.js';
 
 /** Allowed parent folders for file skills ('desktop' | 'documents'). */
 export function resolveParent(parent) {
@@ -19,7 +20,7 @@ export function openWithOS(target) {
 
 export async function youtubeFirstVideoId(query) {
   const searchUrl = `https://www.youtube.com/results?search_query=${encodeURIComponent(query)}`;
-  const res = await fetch(searchUrl, { headers: { 'User-Agent': 'Mozilla/5.0' }, signal: AbortSignal.timeout(10000) });
+  const res = await safeFetch(searchUrl, { timeoutMs: 10000 });
   const html = await res.text();
   const match = html.match(/\/watch\?v=([a-zA-Z0-9_-]{11})/);
   return match ? `https://www.youtube.com/watch?v=${match[1]}` : searchUrl;
