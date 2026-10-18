@@ -56,6 +56,7 @@ export const PERMISSION = {
   CONTROL_VOLUME: 'control:volume',
   NETWORK_FETCH: 'network:fetch',
   BROWSER_AUTOMATE: 'browser:automate',
+  UI_AUTOMATE: 'ui:automate',
   SCREEN_CAPTURE: 'screen:capture',
   MEMORY_READ: 'memory:read',
   MEMORY_WRITE: 'memory:write',

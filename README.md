@@ -22,6 +22,16 @@ says so instead of inventing data.
   volume/media, and report live CPU/memory/battery. **Destructive actions
   (deleting a file or folder) always pause and require your explicit CONFIRM
   in the UI.**
+- **Native app UI control** — `control_desktop_app` drives real Windows apps
+  through the OS accessibility layer (UI Automation), with a computer-use
+  discipline: list running apps, observe a window's semantic element tree
+  (roles, names, values, states, advertised patterns), act on elements by
+  index (`click`, `setValue`, `performAction`), and verify every effect from
+  the read-back each action returns (`setValue` confirms the text actually
+  landed; clicks report the new window title and keyboard focus). Window
+  screenshots with vision analysis are the fallback for UIs the tree can't
+  see. Shell windows (cmd/PowerShell) are hard-blocked from automation —
+  both in the policy kernel and again at execution time.
 - **Long-term memory** — Friday remembers facts and preferences across
   restarts ("remember that…", "what do you remember about me?"), plus an
   episodic log of recent interactions injected into every conversation.
@@ -34,15 +44,30 @@ says so instead of inventing data.
 - **Skill plugin system** — every capability is one file in `server/skills/`
   declaring its own schema, risk level and policy; the registry generates the
   tool catalog, the kernel permission table and execution dispatch from it.
-- **Agentic web** — a real Puppeteer-driven Chrome window: the model can
-  navigate, read simplified DOMs, click, type, scroll, extract article text,
-  and take (visually analysed) screenshots until a web task is complete.
+- **Agentic web** — a real Puppeteer-driven Chrome window with a
+  control-browser-style discipline: ARIA-grade snapshots (roles, accessible
+  names, checked/selected/expanded states, iframe content) carry **stable
+  element IDs** that survive DOM re-renders, so the model never mis-clicks a
+  moved target. Actions use real mouse/keyboard events and wait on what the
+  page actually does (navigation or network settle) instead of blind sleeps;
+  `target="_blank"` popups are adopted automatically and every action returns
+  an observation line (URL/title before → after) so the agent verifies its own
+  effects. Coordinate clicks (`clickAt`) cover canvas/visual targets,
+  `extract` reads article text, screenshots are vision-analysed, and a
+  read-before-act / verify-after-every-action workflow is baked into the
+  system prompt. Set `WEB_AGENT_HEADLESS=1` to hide the Chrome window.
 - **Always-on wake word** — the mic is hot the moment the page loads (no
   button). Say **"Friday"** followed by your command — e.g. *"Friday, open
   notepad"* — or just *"Friday"* and speak within 8 seconds. Everything after
   the wake word goes through the agent and is acted on. F.R.I.D.A.Y. pauses
   listening while she speaks so she never hears her own voice.
-- **Voice input** — Web Speech API `SpeechRecognition` (Chromium-family).
+- **Voice input** — Web Speech API `SpeechRecognition` (Chromium-family). If
+  Chromium's speech service is unreachable (offline or region-blocked network —
+  it fails with endless `network` errors), the engine automatically falls back
+  to **server-side transcription**: the mic is recorded locally with a
+  silence-detecting VAD and each utterance is transcribed by Groq Whisper via
+  `POST /api/stt` (uses a `GROQ_API_KEY`; optional `STT_MODEL`
+  override).
 - **Voice output** — **ElevenLabs** via `/api/tts`, with the browser's own
   `speechSynthesis` as an automatic fallback.
 - **Arc reactor / spectrum** — a real `AnalyserNode` fed by the live microphone

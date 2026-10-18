@@ -2,7 +2,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import {
-  validateUrl, validateMode, validateDirection, validateElementId, clampInt,
+  validateUrl, validateMode, validateDirection, validateElementId, validateCoordinates, clampInt,
   NAV_TIMEOUT, ACTION_TIMEOUT, WAIT_MAX, DOM_MAX_CHARS, INTERACTIVE_MAX
 } from '../../server/web-agent/validate.js';
 
@@ -66,6 +66,19 @@ test('element ids are non-empty strings only', () => {
   assert.equal(validateElementId(null), null);
   assert.equal(validateElementId(12), null);
   assert.equal(validateElementId({ id: 'el-1' }), null);
+});
+
+test('clickAt coordinates are finite numbers truncated to non-negative ints', () => {
+  assert.deepEqual(validateCoordinates(68, 38), { x: 68, y: 38 });
+  assert.deepEqual(validateCoordinates(0, 0), { x: 0, y: 0 });
+  assert.deepEqual(validateCoordinates('12', 40.9), { x: 12, y: 40 });
+  assert.equal(validateCoordinates(-5, 10), null); // negatives are invalid input
+  assert.equal(validateCoordinates(5, -0.5), null);
+  assert.equal(validateCoordinates('nope', 10), null);
+  assert.equal(validateCoordinates(undefined, undefined), null);
+  assert.equal(validateCoordinates(NaN, 10), null);
+  assert.equal(validateCoordinates(Infinity, 10), null);
+  assert.equal(validateCoordinates(null, 10), null);
 });
 
 test('numeric bounds are enforced and non-numbers fall back to the default', () => {

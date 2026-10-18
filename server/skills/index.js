@@ -21,6 +21,7 @@ import delete_path from './delete_path.js';
 import create_document from './create_document.js';
 import search_web_summary from './search_web_summary.js';
 import inspect_and_interact_web from './inspect_and_interact_web.js';
+import control_desktop_app from './control_desktop_app.js';
 import analyze_screen from './analyze_screen.js';
 import remember_fact from './remember_fact.js';
 import recall_facts from './recall_facts.js';
@@ -45,6 +46,7 @@ export default [
   create_document,
   search_web_summary,
   inspect_and_interact_web,
+  control_desktop_app,
   analyze_screen,
   remember_fact,
   recall_facts,

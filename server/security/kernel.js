@@ -8,7 +8,7 @@
 import path from 'path';
 import { DECISION, RISK, deny } from './risk.js';
 import { PERMISSION, getToolMetadata, validateInput } from './permissions.js';
-import { resolveApp, SENSITIVE_EXECUTABLES } from './app-policy.js';
+import { resolveApp, validateProcessTarget, SENSITIVE_EXECUTABLES } from './app-policy.js';
 import { checkUrl, checkUrlForAgent } from './network-policy.js';
 import { checkWritePath, checkReadPath, checkDeletePath, checkFileName } from './path-policy.js';
 import { documentsDir, desktopDir, homeDir } from '../lib/paths.js';
@@ -110,6 +110,17 @@ function checkPermission(permission, args) {
       if (typeof url === 'string' && url.trim()) {
         const result = checkUrlForAgent(url);
         if (!result.ok) return { reason: result.reason };
+      }
+      return null;
+    }
+
+    case PERMISSION.UI_AUTOMATE: {
+      // Desktop agent targets a RUNNING process window, not a launch target:
+      // certify the name is bare and injection-free. The sensitive-process
+      // block also lives in the engine (defence in depth).
+      if (args.appName !== undefined && args.appName !== '') {
+        const target = validateProcessTarget(args.appName);
+        if (!target.ok) return { reason: target.reason };
       }
       return null;
     }

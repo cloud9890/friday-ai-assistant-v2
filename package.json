@@ -8,9 +8,10 @@
     "dev": "vite --port 5173",
     "build": "vite build",
     "preview": "vite preview",
-    "test": "node --test test/"
+    "test": "node --test"
   },
   "dependencies": {
+    "@formkit/auto-animate": "^0.10.0",
     "docx": "^8.5.0",
     "puppeteer": "^24.43.1"
   },

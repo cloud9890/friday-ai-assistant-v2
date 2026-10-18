@@ -14,7 +14,7 @@ import {
   validateUrl, validateMode, clampInt, WAIT_MAX, sleep
 } from './validate.js';
 import {
-  navigateTo, goBack, goForward, reloadPage, clickElement, typeInto,
+  navigateTo, goBack, goForward, reloadPage, clickElement, clickAt, typeInto,
   pressKeys, selectOption, hoverElement, scrollPage
 } from './actions.js';
 
@@ -63,7 +63,36 @@ function readOpts(body) {
   };
 }
 
-async function attachSnapshot(result, page, opts) {
+/** Pre-action page facts used to verify the action's effect afterwards. */
+async function pageFacts(page) {
+  let title = '';
+  try { title = await page.title(); } catch {}
+  return { url: page.url(), title };
+}
+
+/**
+ * Skill discipline: judge an action by its visible effect, not by the
+ * absence of an error. The observation tells the model what changed and,
+ * when nothing did, where to look next (popups, scroll, screenshot).
+ */
+function buildObservation(before, snap, newTabs) {
+  const lines = [];
+  const urlChanged = before.url !== snap.url;
+  const titleChanged = before.title !== snap.title;
+  lines.push(
+    `Observed after action: URL ${urlChanged ? `changed ${before.url} -> ${snap.url}` : 'unchanged'}` +
+    `, title ${titleChanged ? 'now "' + snap.title + '"' : 'unchanged'}` +
+    `, ${snap.elements.length} interactive elements on the page.`
+  );
+  if (newTabs && newTabs.length > 0) {
+    lines.push(`A new tab opened and is now the active tab: ${newTabs.join(', ')}. The snapshot below shows it.`);
+  } else if (!urlChanged && !titleChanged) {
+    lines.push('No navigation or title change detected. If you expected a page change: check listTabs for a popup, scroll to reveal content, or take a screenshot to see the current state.');
+  }
+  return lines.join('\n');
+}
+
+async function attachSnapshot(result, page, opts, before = null, newTabs = []) {
   const snap = await snapshotDOMWithRetry(page, opts);
   result.dom = snap.markdown;
   result.markdown = snap.markdown;
@@ -71,6 +100,7 @@ async function attachSnapshot(result, page, opts) {
   result.title = snap.title;
   result.url = snap.url;
   result.truncated = snap.truncated;
+  if (before) result.observation = buildObservation(before, snap, newTabs);
   return result;
 }
 
@@ -89,6 +119,11 @@ export async function handleWebAgent(body = {}) {
   const result = { success: true, action, tabId: tab.id };
   const opts = readOpts(body);
 
+  // Popups opened by an action (target=_blank) get adopted and become the
+  // active tab; the post-action snapshot then shows the popup, not the source.
+  let newTabs = [];
+  let before = null;
+
   try {
     switch (action) {
       case 'navigate': {
@@ -96,6 +131,7 @@ export async function handleWebAgent(body = {}) {
         if (!resolved.ok) {
           return { success: false, action, error: resolved.error };
         }
+        before = await pageFacts(page);
         const nav = await navigateTo(page, resolved.url);
         if (!nav.ok) return { success: false, action, error: nav.error };
         const landed = checkLandedUrl(page);
@@ -103,11 +139,13 @@ export async function handleWebAgent(body = {}) {
         break;
       }
       case 'reload': {
+        before = await pageFacts(page);
         const r = await reloadPage(page);
         if (!r.ok) return { success: false, action, error: r.error };
         break;
       }
       case 'back': {
+        before = await pageFacts(page);
         const r = await goBack(page);
         if (!r.ok) return { success: false, action, error: r.error };
         const landed = checkLandedUrl(page);
@@ -115,6 +153,7 @@ export async function handleWebAgent(body = {}) {
         break;
       }
       case 'forward': {
+        before = await pageFacts(page);
         const r = await goForward(page);
         if (!r.ok) return { success: false, action, error: r.error };
         const landed = checkLandedUrl(page);
@@ -122,34 +161,53 @@ export async function handleWebAgent(body = {}) {
         break;
       }
       case 'click': {
+        before = await pageFacts(page);
         const r = await clickElement(page, body.elementId);
         if (!r.ok) return { success: false, action, error: r.error };
         const landed = checkLandedUrl(page);
         if (!landed.ok) return { success: false, action, error: landed.error };
+        newTabs = await session.adoptPopups();
+        break;
+      }
+      case 'clickAt': {
+        before = await pageFacts(page);
+        const r = await clickAt(page, body.x, body.y);
+        if (!r.ok) return { success: false, action, error: r.error };
+        result.clickAt = { x: r.x, y: r.y };
+        const landed = checkLandedUrl(page);
+        if (!landed.ok) return { success: false, action, error: landed.error };
+        newTabs = await session.adoptPopups();
         break;
       }
       case 'type': {
-        const r = await typeInto(page, body.elementId, body.text);
+        before = await pageFacts(page);
+        const r = await typeInto(page, body.elementId, body.text, { submit: Boolean(body.submit) });
         if (!r.ok) return { success: false, action, error: r.error };
+        if (body.submit) newTabs = await session.adoptPopups();
         break;
       }
       case 'keypress': {
+        before = await pageFacts(page);
         const r = await pressKeys(page, body.keys);
         if (!r.ok) return { success: false, action, error: r.error };
+        newTabs = await session.adoptPopups();
         break;
       }
       case 'select': {
+        before = await pageFacts(page);
         const r = await selectOption(page, body.elementId, body.value);
         if (!r.ok) return { success: false, action, error: r.error };
         break;
       }
       case 'hover': {
+        before = await pageFacts(page);
         const r = await hoverElement(page, body.elementId);
         if (!r.ok) return { success: false, action, error: r.error };
         break;
       }
       case 'scroll': {
-        const r = await scrollPage(page, body.direction);
+        before = await pageFacts(page);
+        const r = await scrollPage(page, body.direction, body.elementId || null);
         if (!r.ok) return { success: false, action, error: r.error };
         break;
       }
@@ -190,8 +248,8 @@ export async function handleWebAgent(body = {}) {
         break;
       }
       case 'listTabs': {
-        result.tabs = session.listTabs();
-        result.dom = result.tabs.map((t) => `- ${t.active ? '[ACTIVE] ' : ''}${t.id} ${t.title} ${t.url}`).join('\n');
+        result.tabs = await session.listTabs();
+        result.dom = result.tabs.map((t) => `- ${t.active ? '[ACTIVE] ' : ''}${t.id} "${t.title}" ${t.url}`).join('\n');
         break;
       }
       default:
@@ -201,9 +259,16 @@ export async function handleWebAgent(body = {}) {
     return { success: false, action, error: `Web agent error: ${e.message}` };
   }
 
-  // Every state-changing action returns a fresh DOM read (legacy behavior).
+  // Every state-changing action returns a fresh DOM read (legacy behavior)
+  // plus an observation of what actually changed.
   if (!['screenshot', 'listTabs', 'closeTab'].includes(action)) {
-    await attachSnapshot(result, page, opts);
+    if (newTabs.length > 0) {
+      const next = session.getTab(session.activeTabId) || tab;
+      result.tabId = next.id;
+      await attachSnapshot(result, next.page, opts, before, newTabs);
+    } else {
+      await attachSnapshot(result, page, opts, before);
+    }
   }
   return result;
 }

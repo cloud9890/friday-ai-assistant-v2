@@ -5,6 +5,7 @@
    ========================================================================== */
 
 import puppeteer from 'puppeteer';
+import { readEnv } from '../lib/env.js';
 import { NAV_TIMEOUT, ACTION_TIMEOUT } from './validate.js';
 
 let singleton = null;
@@ -23,8 +24,11 @@ export class BrowserSession {
     const alive = this.browser && this.browser.process() !== null;
     if (alive) return;
 
+    // Visible window by default so the user can watch the agent work;
+    // WEB_AGENT_HEADLESS=1 runs it invisible.
+    const headless = /^(1|true)$/i.test(readEnv('WEB_AGENT_HEADLESS') || '');
     this.browser = await puppeteer.launch({
-      headless: false,
+      headless,
       defaultViewport: null,
       args: ['--window-size=1280,800', '--start-maximized']
     });
@@ -34,6 +38,26 @@ export class BrowserSession {
       this.pages.clear();
       this.activeTabId = null;
     });
+
+    // Puppeteer pre-creates an initial page at launch; register it so popup
+    // adoption later only ever reports genuinely new tabs.
+    try {
+      for (const p of await this.browser.pages()) this._registerPage(p);
+    } catch { /* best effort */ }
+  }
+
+  /** Tracks a page under a fresh tab id and makes it the active tab. */
+  _registerPage(page) {
+    const id = `tab-${++this.tabCounter}`;
+    page.setDefaultTimeout(ACTION_TIMEOUT);
+    page.setDefaultNavigationTimeout(NAV_TIMEOUT);
+    page.on('close', () => {
+      if (this.pages.get(id) === page) this.pages.delete(id);
+      if (this.activeTabId === id) this.activeTabId = null;
+    });
+    this.pages.set(id, page);
+    this.activeTabId = id;
+    return id;
   }
 
   /** Lazily return (creating if needed) the single active page. */
@@ -51,20 +75,12 @@ export class BrowserSession {
   async newTab(url = null) {
     await this.ensureBrowser();
     const page = await this.browser.newPage();
-    page.setDefaultTimeout(ACTION_TIMEOUT);
-    page.setDefaultNavigationTimeout(NAV_TIMEOUT);
-
-    const id = `tab-${++this.tabCounter}`;
-    page.on('close', () => {
-      if (this.pages.get(id) === page) this.pages.delete(id);
-      if (this.activeTabId === id) this.activeTabId = null;
-    });
-    this.pages.set(id, page);
-    this.activeTabId = id;
+    const id = this._registerPage(page);
 
     if (url) {
       try {
-        await page.goto(url, { waitUntil: 'networkidle2', timeout: NAV_TIMEOUT });
+        await page.goto(url, { waitUntil: 'domcontentloaded', timeout: NAV_TIMEOUT });
+        await page.waitForNetworkIdle({ idleTime: 500, timeout: 5000 }).catch(() => {});
       } catch {
         // navigation failure surfaces on the first action
       }
@@ -80,6 +96,25 @@ export class BrowserSession {
     return null;
   }
 
+  /**
+   * Adopts browser pages the agent never created — target=_blank popups and
+   * window.open links. The newest popup becomes the active tab, since popups
+   * are almost always the effect the task wants to follow.
+   * @returns {string[]} ids of newly adopted tabs
+   */
+  async adoptPopups() {
+    if (!this.browser) return [];
+    let open;
+    try { open = await this.browser.pages(); } catch { return []; }
+    const tracked = new Set(this.pages.values());
+    const adopted = [];
+    for (const page of open) {
+      if (tracked.has(page) || page.isClosed()) continue;
+      adopted.push(this._registerPage(page));
+    }
+    return adopted;
+  }
+
   async closeTab(tabId) {
     const tab = this.getTab(tabId);
     if (!tab) return false;
@@ -92,11 +127,11 @@ export class BrowserSession {
     return true;
   }
 
-  listTabs() {
+  async listTabs() {
     const out = [];
     for (const [id, page] of this.pages.entries()) {
       let title = '';
-      try { title = page.title(); } catch {}
+      try { title = await page.title(); } catch {}
       out.push({ id, url: page.url(), title, active: id === this.activeTabId });
     }
     return out;

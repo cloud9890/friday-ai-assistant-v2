@@ -11,7 +11,9 @@ import { policyHints, describe, executeSkill } from '../skills/registry.js';
 import { memoryContextBlock } from '../memory/context.js';
 import { appendEpisode } from '../memory/store.js';
 
-const MAX_ITERATIONS = 10;
+// 16 lets a full browser chain breathe: navigate -> read -> click -> read ->
+// type -> read -> verify still leaves room for retries with fresh reads.
+const MAX_ITERATIONS = 16;
 const PENDING_TTL_MS = 10 * 60 * 1000;
 const MAX_TOOL_RESULT_CHARS = 60000;
 

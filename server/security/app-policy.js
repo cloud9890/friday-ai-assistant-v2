@@ -60,3 +60,38 @@ export function resolveApp(appName) {
     reason: `unknown application "${appName}" — not in the allow-list and no matching shortcut was found`
   };
 }
+
+/**
+ * Process names whose windows must never be automated (typing into a shell
+ * window is arbitrary command execution). Matches Get-Process names, not
+ * exe filenames: SENSITIVE_EXECUTABLES covers launch policy, this covers the
+ * desktop agent's window targeting.
+ */
+export const SENSITIVE_PROCESS_NAMES = new Set([
+  'cmd', 'powershell', 'pwsh', 'wscript', 'cscript', 'mshta'
+]);
+
+/**
+ * Static validation for a desktop-agent process target. Unlike resolveApp
+ * this does NOT resolve to a launch target — it only certifies that the
+ * name is a bare, injection-free process name the UIA bridge may match on.
+ * The engine additionally refuses SENSITIVE_PROCESS_NAMES at execution time
+ * (belt and braces with the kernel).
+ *
+ * @param {string} appName
+ * @returns {{ok: boolean, reason?: string}}
+ */
+export function validateProcessTarget(appName) {
+  if (typeof appName !== 'string' || !appName.trim()) {
+    return { ok: false, reason: 'appName required' };
+  }
+  const clean = appName.toLowerCase().trim();
+  if (/[\\/]/.test(clean)) return { ok: false, reason: 'appName must not contain a path' };
+  if (/["'`;|&$(){}<>]/.test(clean)) return { ok: false, reason: 'appName contains invalid characters' };
+  if (clean.includes('..') || clean.includes('\0')) return { ok: false, reason: 'invalid appName' };
+  if (clean.length > 64) return { ok: false, reason: 'appName is too long' };
+  if (SENSITIVE_PROCESS_NAMES.has(clean)) {
+    return { ok: false, reason: `automating a ${clean} window is not allowed` };
+  }
+  return { ok: true };
+}

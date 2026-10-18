@@ -41,6 +41,18 @@ export function validateElementId(id) {
   return id.trim();
 }
 
+/** Validates a coordinate pair for clickAt: non-negative finite numbers,
+ *  truncated to ints. null/undefined/'' are invalid (Number(null) is 0 and
+ *  must not pass as "click at x=0"); negatives are invalid input too
+ *  (clickAt clamps the upper bound to the viewport itself). */
+export function validateCoordinates(x, y) {
+  if (x === null || x === undefined || x === '' || y === null || y === undefined || y === '') return null;
+  const nx = Number(x);
+  const ny = Number(y);
+  if (!Number.isFinite(nx) || !Number.isFinite(ny) || nx < 0 || ny < 0) return null;
+  return { x: Math.trunc(nx), y: Math.trunc(ny) };
+}
+
 /** Validates a DOM read mode; defaults to 'interactive'. */
 export function validateMode(mode) {
   const m = String(mode || 'interactive').toLowerCase();
