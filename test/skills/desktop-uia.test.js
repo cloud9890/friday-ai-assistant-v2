@@ -3,7 +3,7 @@
    never touch a user's open windows. */
 import { test, before, after } from 'node:test';
 import assert from 'node:assert/strict';
-import { execFile, exec } from 'child_process';
+import { execFile } from 'child_process';
 
 import { parseUiaOutput, DesktopUseError } from '../../server/desktop-agent/uia.js';
 import {
@@ -141,9 +141,11 @@ test('live: observe -> setValue -> verify -> close, on a dedicated fixture windo
     // Win11 store Notepad hands off to another process, so killing the stub
     // pid leaves the window alive. Kill only windows whose title carries our
     // unique fixture name — never the user's documents.
-    exec(
-      `powershell -NoProfile -Command "Get-Process notepad -ErrorAction SilentlyContinue | ` +
-      `Where-Object { \\$_.MainWindowTitle -like '*${fixtureTitle}*' } | Stop-Process -Force"`,
+    execFile(
+      'powershell.exe',
+      ['-NoProfile', '-NonInteractive', '-Command',
+        'Get-Process notepad -ErrorAction SilentlyContinue | Where-Object { $_.MainWindowTitle -like "*$env:FRIDAY_FIXTURE*" } | Stop-Process -Force'],
+      { env: { ...process.env, FRIDAY_FIXTURE: fixtureTitle } },
       () => {}
     );
     fs.rmSync(fixturePath, { force: true });

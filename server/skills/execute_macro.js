@@ -4,7 +4,7 @@
    runs, so a macro can never half-start with an invalid tail.
    ========================================================================== */
 
-import { execSync } from 'child_process';
+import { execFileSync } from 'child_process';
 import { RISK, CONFIRMATION, PERMISSION } from '../security/risk.js';
 import { APP_EXECUTABLES, findAppShortcut, launchInInteractiveSession, findStartApp } from '../lib/app-launcher.js';
 
@@ -16,7 +16,11 @@ function launchStep(target) {
   const startApp = findStartApp(target);
   if (startApp) return launchInInteractiveSession(startApp);
   try {
-    execSync(`powershell.exe -WindowStyle Hidden -Command "Start-Process '${target.replace(/'/g, "''")}' -ErrorAction Stop"`, { stdio: 'ignore', timeout: 5000 });
+    execFileSync(
+      'powershell.exe',
+      ['-NoProfile', '-NonInteractive', '-WindowStyle', 'Hidden', '-Command', 'Start-Process -FilePath $env:FRIDAY_LAUNCH -ErrorAction Stop'],
+      { stdio: 'ignore', timeout: 5000, env: { ...process.env, FRIDAY_LAUNCH: String(target) } }
+    );
     return Promise.resolve(true);
   } catch (e) {
     return Promise.resolve(false);

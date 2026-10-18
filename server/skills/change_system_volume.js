@@ -30,7 +30,7 @@ export default {
     else if (action === 'volume-set') arg = 'set';
     const scriptPath = path.join(process.cwd(), 'volume.ps1');
     if (!fs.existsSync(scriptPath)) return 'Error: volume control script is missing on the server.';
-    runPowerShellScript(scriptPath, `${arg} ${Number(args.amount) || 10}`);
+    runPowerShellScript(scriptPath, [arg, String(Number(args.amount) || 10)]);
     return `System volume adjusted (${action}${args.amount !== undefined ? ` ${args.amount}` : ''}).`;
   }
 };

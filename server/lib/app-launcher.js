@@ -2,7 +2,7 @@
    F.R.I.D.A.Y. // SERVER LIB — APP LAUNCHER
    ========================================================================== */
 
-import { exec, execFile } from 'child_process';
+import { execFile } from 'child_process';
 import fs from 'fs';
 import path from 'path';
 import { homeDir } from './paths.js';
@@ -37,9 +37,10 @@ let startAppsCache = null;
 
 export function primeStartAppsCache() {
   if (process.platform !== 'win32') return;
-  exec(
-    'powershell -NoProfile -Command "Get-StartApps | ConvertTo-Json -Compress"',
-    { timeout: 20000 },
+  execFile(
+    'powershell.exe',
+    ['-NoProfile', '-NonInteractive', '-Command', 'Get-StartApps | ConvertTo-Json -Compress'],
+    { windowsHide: true, timeout: 20000 },
     (err, stdout) => {
       if (err || !stdout) return;
       try {
@@ -107,19 +108,27 @@ export function launchInInteractiveSession(target) {
       });
       return;
     }
-    const cmd = 'powershell.exe';
-    const args = ['-Command', `Start-Process '${target.replace(/'/g, "''")}'`];
 
-    execFile(cmd, args, { timeout: 10000 }, (err) => {
-      if (err) {
-        console.warn(`  ❌ Launch failed for "${target}":`, err.message);
-        exec(`start "" "${target.replace(/"/g, '""')}"`, (err2) => {
-          resolve(!err2);
-        });
-      } else {
-        console.log(`  ✅ Launched: "${target}"`);
-        resolve(true);
+    // PowerShell resolves .lnk shortcuts and .cmd shims (e.g. VS Code's `code`),
+    // which a bare execFile cannot. The target is handed over as an environment
+    // variable and read as $env:FRIDAY_LAUNCH, so it never becomes command text
+    // and a quote in a shortcut name cannot inject (M5).
+    execFile(
+      'powershell.exe',
+      ['-NoProfile', '-NonInteractive', '-Command', 'Start-Process -FilePath $env:FRIDAY_LAUNCH'],
+      { timeout: 10000, windowsHide: true, env: { ...process.env, FRIDAY_LAUNCH: String(target) } },
+      (err) => {
+        if (err) {
+          console.warn(`  ❌ Launch failed for "${target}":`, err.message);
+          // Last resort: let the shell namespace open the path (still argv-only).
+          execFile('explorer.exe', [String(target)], { timeout: 10000 }, (err2) => {
+            resolve(!err2);
+          });
+        } else {
+          console.log(`  ✅ Launched: "${target}"`);
+          resolve(true);
+        }
       }
-    });
+    );
   });
 }

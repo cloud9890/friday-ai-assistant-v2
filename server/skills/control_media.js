@@ -36,7 +36,7 @@ export default {
       [Keyboard]::keybd_event(${vk}, 0, 2, 0)`;
     const tempScriptPath = path.join(os.tmpdir(), 'friday_media_control.ps1');
     fs.writeFileSync(tempScriptPath, psScript);
-    runPowerShellScript(tempScriptPath, '');
+    runPowerShellScript(tempScriptPath, []);
     return `Media control executed (${action}).`;
   }
 };

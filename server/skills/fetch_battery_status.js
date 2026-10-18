@@ -2,7 +2,7 @@
    F.R.I.D.A.Y. // SKILL — FETCH BATTERY STATUS
    ========================================================================== */
 
-import { exec } from 'child_process';
+import { execFile } from 'child_process';
 import { RISK, CONFIRMATION, PERMISSION } from '../security/risk.js';
 
 export default {
@@ -15,9 +15,10 @@ export default {
 
   execute() {
     const battery = new Promise((resolve) => {
-      exec(
-        'powershell -NoProfile -Command "Get-CimInstance -ClassName Win32_Battery | Select-Object EstimatedChargeRemaining, BatteryStatus | ConvertTo-Json -Compress"',
-        { timeout: 12000 },
+      execFile(
+        'powershell.exe',
+        ['-NoProfile', '-NonInteractive', '-Command', 'Get-CimInstance -ClassName Win32_Battery | Select-Object EstimatedChargeRemaining, BatteryStatus | ConvertTo-Json -Compress'],
+        { windowsHide: true, timeout: 12000 },
         (err, stdout) => resolve(err ? null : stdout)
       );
     });
