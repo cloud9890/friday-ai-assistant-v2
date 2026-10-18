@@ -25,13 +25,21 @@ export default {
   confirmation: CONFIRMATION.NONE,
 
   policyHints(args) {
+    // The kernel must see the resolved FILE, not just the folder: a bare
+    // __readDirs check lets "..\\..\\.env" escape the read root (C1).
     const dir = resolveParent(args.parent);
-    return dir ? { __readDirs: [dir] } : {};
+    if (!dir) return { __readDirs: [String(args.parent || '')] }; // unknown parent never maps to a read root
+    const fileName = String(args.fileName || '');
+    return {
+      __fileName: fileName,
+      __readDirs: [dir],
+      __targetPath: path.join(dir, fileName)
+    };
   },
 
   execute(args, ctx, hints) {
-    const dir = (hints.__readDirs || [])[0];
-    const full = path.join(dir, String(args.fileName || ''));
+    const full = hints.__targetPath;
+    if (!full) return 'Error: no readable target.';
     const stat = fs.statSync(full);
     if (stat.size > 2_000_000) return 'Error: file is too large to read (over 2 MB).';
     const content = fs.readFileSync(full, 'utf8');

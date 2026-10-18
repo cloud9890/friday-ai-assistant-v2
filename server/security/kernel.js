@@ -77,6 +77,16 @@ function checkPermission(permission, args) {
     }
 
     case PERMISSION.READ_FILES: {
+      // Validate the file name and the resolved file path, not just the
+      // folder — a directory-only check is bypassed by traversal (C1).
+      if (args.__fileName !== undefined) {
+        const file = checkFileName(args.__fileName);
+        if (!file.ok) return { reason: file.reason };
+      }
+      if (args.__targetPath !== undefined) {
+        const target = checkReadPath(args.__targetPath);
+        if (!target.ok) return { reason: target.reason };
+      }
       if (Array.isArray(args.__readDirs)) {
         for (const dir of args.__readDirs) {
           const check = checkReadPath(dir);

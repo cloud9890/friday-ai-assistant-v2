@@ -17,13 +17,21 @@ const MAX_ITERATIONS = 16;
 const PENDING_TTL_MS = 10 * 60 * 1000;
 const MAX_TOOL_RESULT_CHARS = 60000;
 
+// Tool/observation text may carry fetched or observed content, so it is framed
+// as data for the model and never presented as instructions (C4).
+const UNTRUSTED_OPEN = '<<<UNTRUSTED_TOOL_OUTPUT>>>';
+const UNTRUSTED_CLOSE = '<<<END_UNTRUSTED_TOOL_OUTPUT>>>';
+function frameUntrusted(text) {
+  return `${UNTRUSTED_OPEN}\n${text}\n${UNTRUSTED_CLOSE}`;
+}
+
 /** token -> { messages, batch, batchIndex, createdAt } */
 const pendingConfirmations = new Map();
 
 function gcPending() {
   const now = Date.now();
   for (const [token, entry] of pendingConfirmations) {
-    if (now - entry.createdAt > PENDING_TTL_MS) pendingConfirmations.delete(token);
+    if (now - entry.createdAt > PENDING_TTL_MS || entry.signal?.aborted) pendingConfirmations.delete(token);
   }
 }
 
@@ -58,13 +66,15 @@ function parseArgs(rawArgs) {
  * Returns { actions, pending } — pending is set when a confirmation-required
  * call pauses the loop (the remaining state is stashed for later resume).
  */
-async function processBatch(chat, messages, batch, batchIndex, actions, onEvent) {
+async function processBatch(chat, messages, batch, batchIndex, actions, onEvent, screenFrame, signal) {
   for (let i = batchIndex; i < batch.length; i++) {
+    // A stop must halt the server, not just the client fetch (C5).
+    if (signal?.aborted) return { actions, pending: null, aborted: true };
     const call = batch[i];
     const name = call.function.name;
     const args = parseArgs(call.function.arguments);
 
-    const { hints } = policyHints(name, args);
+    const hints = policyHints(name, args);
     const decision = authorize({ tool: name, args, actor: 'agent', ...hints });
 
     if (decision.decision !== 'allow') {
@@ -80,7 +90,7 @@ async function processBatch(chat, messages, batch, batchIndex, actions, onEvent)
     // Destructive capabilities pause the loop for explicit user approval.
     if (decision.meta && decision.meta.confirmation === 'always') {
       const token = `confirm_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
-      pendingConfirmations.set(token, { messages, batch, batchIndex: i, createdAt: Date.now() });
+      pendingConfirmations.set(token, { messages, batch, batchIndex: i, createdAt: Date.now(), signal });
       return {
         actions,
         pending: {
@@ -96,13 +106,13 @@ async function processBatch(chat, messages, batch, batchIndex, actions, onEvent)
     let result;
     try {
       onEvent?.({ type: 'tool', name });
-      result = await executeSkill(name, args, hints, { chat });
+      result = await executeSkill(name, args, hints, { chat, screenFrame });
       onEvent?.({ type: 'toolDone', name, summary: trimToolResult(result, 200) || 'done' });
     } catch (e) {
       result = `Error executing tool: ${e.message}`;
     }
     actions.push({ tool: name, args, risk: decision.risk, decision: 'allowed', summary: trimToolResult(result, 200) || 'done' });
-    messages.push({ role: 'tool', tool_call_id: call.id, name, content: trimToolResult(result) });
+    messages.push({ role: 'tool', tool_call_id: call.id, name, content: frameUntrusted(trimToolResult(result)) });
   }
   return { actions, pending: null };
 }
@@ -138,11 +148,11 @@ function intentBooster(userText) {
 
 /**
  * Runs one agent turn.
- * @param {{chat: Function, messages: Array, confirmToken?: string, cancelToken?: string}} params
+ * @param {{chat: Function, messages: Array, confirmToken?: string, cancelToken?: string, screenFrame?: string}} params
  *   messages: prior user/assistant turns (the system prompt is prepended here).
  * @returns {{reply, provider, model, actions} | {pending, provider, actions}}
  */
-export async function runAgentTurn({ chat, messages, confirmToken = null, cancelToken = null, onEvent = null }) {
+export async function runAgentTurn({ chat, messages, confirmToken = null, cancelToken = null, screenFrame = null, onEvent = null, signal = null }) {
   gcPending();
 
   let actions = [];
@@ -163,26 +173,30 @@ export async function runAgentTurn({ chat, messages, confirmToken = null, cancel
     if (cancelToken) {
       entry.messages.push({ role: 'tool', tool_call_id: call.id, name, content: 'The user DECLINED this action. Do not attempt it again; acknowledge and offer alternatives.' });
       actions.push({ tool: name, args, risk: 'high', decision: 'cancelled', summary: 'Declined by user' });
+    } else if (signal?.aborted) {
+      entry.messages.push({ role: 'tool', tool_call_id: call.id, name, content: 'The user stopped the task. Do not perform it.' });
+      actions.push({ tool: name, args, risk: 'high', decision: 'cancelled', summary: 'Stopped by user' });
     } else {
-      const { hints } = policyHints(name, args);
+      const hints = policyHints(name, args);
       let result;
       try {
-        result = await executeSkill(name, args, hints, { chat });
+        result = await executeSkill(name, args, hints, { chat, screenFrame });
       } catch (e) {
         result = `Error executing tool: ${e.message}`;
       }
       actions.push({ tool: name, args, risk: 'high', decision: 'confirmed', summary: trimToolResult(result, 200) || 'done' });
-      entry.messages.push({ role: 'tool', tool_call_id: call.id, name, content: trimToolResult(result) });
+      entry.messages.push({ role: 'tool', tool_call_id: call.id, name, content: frameUntrusted(trimToolResult(result)) });
     }
 
     // Continue with the rest of the batch, then the loop.
     messages = entry.messages;
     const batch = entry.batch;
-    const rest = await processBatch(chat, messages, batch, entry.batchIndex + 1, actions, onEvent);
+    const rest = await processBatch(chat, messages, batch, entry.batchIndex + 1, actions, onEvent, screenFrame, signal);
+    if (rest.aborted) return { reply: 'Stopped, Boss.', provider: 'system', model: '', actions, aborted: true };
     if (rest.pending) return { pending: rest.pending, provider: 'pending', actions: rest.actions };
 
     // Fall through to the reasoning loop below with the resumed messages.
-    return await reasonLoop(chat, messages, actions, onEvent);
+    return await reasonLoop(chat, messages, actions, onEvent, screenFrame, signal);
   }
 
   // ---- Fresh turn --------------------------------------------------------
@@ -191,17 +205,18 @@ export async function runAgentTurn({ chat, messages, confirmToken = null, cancel
   const booster = lastUser && intentBooster(lastUser.content);
   if (booster) full.push(booster);
   full.push(...messages);
-  const result = await reasonLoop(chat, full, actions, onEvent);
+  const result = await reasonLoop(chat, full, actions, onEvent, screenFrame, signal);
 
   // Log the exchange to episodic memory so future turns remember it.
-  if (result.reply && lastUser) appendEpisode({ user: lastUser.content, reply: result.reply });
+  if (result.reply && lastUser && !result.aborted) appendEpisode({ user: lastUser.content, reply: result.reply });
   return result;
 }
 
-async function reasonLoop(chat, messages, actions, onEvent) {
+async function reasonLoop(chat, messages, actions, onEvent, screenFrame, signal) {
   const toolHistory = [];
 
   for (let iteration = 0; iteration < MAX_ITERATIONS; iteration++) {
+    if (signal?.aborted) return { reply: 'Stopped, Boss.', provider: 'system', model: '', actions, aborted: true };
     const result = await chat({
       messages, tools: TOOLS, max_tokens: 1500, temperature: 0.6,
       onDelta: onEvent ? (text) => onEvent({ type: 'delta', text }) : null
@@ -218,6 +233,9 @@ async function reasonLoop(chat, messages, actions, onEvent) {
     if (onEvent && result.raw.content) onEvent({ type: 'reset' });
     messages.push({ role: 'assistant', content: result.raw.content || '', tool_calls: calls });
 
+    // A repeated call is answered with a nudge and NOT executed: running it
+    // again would emit two tool messages sharing one tool_call_id (H5).
+    const toRun = [];
     for (const call of calls) {
       const signature = `${call.function.name}:${call.function.arguments}`;
       if (toolHistory.includes(signature)) {
@@ -227,10 +245,12 @@ async function reasonLoop(chat, messages, actions, onEvent) {
         });
       } else {
         toolHistory.push(signature);
+        toRun.push(call);
       }
     }
 
-    const { pending } = await processBatch(chat, messages, calls, 0, actions, onEvent);
+    const { pending, aborted } = await processBatch(chat, messages, toRun, 0, actions, onEvent, screenFrame, signal);
+    if (aborted) return { reply: 'Stopped, Boss.', provider: 'system', model: '', actions, aborted: true };
     if (pending) return { pending, provider: result.provider, actions };
   }
 
