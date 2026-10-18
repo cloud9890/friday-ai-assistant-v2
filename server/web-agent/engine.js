@@ -75,7 +75,7 @@ async function pageFacts(page) {
  * absence of an error. The observation tells the model what changed and,
  * when nothing did, where to look next (popups, scroll, screenshot).
  */
-function buildObservation(before, snap, newTabs) {
+function buildObservation(before, snap, newTabs, blockedPopups = []) {
   const lines = [];
   const urlChanged = before.url !== snap.url;
   const titleChanged = before.title !== snap.title;
@@ -89,10 +89,13 @@ function buildObservation(before, snap, newTabs) {
   } else if (!urlChanged && !titleChanged) {
     lines.push('No navigation or title change detected. If you expected a page change: check listTabs for a popup, scroll to reveal content, or take a screenshot to see the current state.');
   }
+  for (const blocked of blockedPopups) {
+    lines.push(`A popup to ${blocked.url || '(unknown)'} was refused by policy (${blocked.reason}) and closed. Do not retry it; continue with the current page or a permitted source.`);
+  }
   return lines.join('\n');
 }
 
-async function attachSnapshot(result, page, opts, before = null, newTabs = []) {
+async function attachSnapshot(result, page, opts, before = null, newTabs = [], blockedPopups = []) {
   const snap = await snapshotDOMWithRetry(page, opts);
   result.dom = snap.markdown;
   result.markdown = snap.markdown;
@@ -100,7 +103,7 @@ async function attachSnapshot(result, page, opts, before = null, newTabs = []) {
   result.title = snap.title;
   result.url = snap.url;
   result.truncated = snap.truncated;
-  if (before) result.observation = buildObservation(before, snap, newTabs);
+  if (before) result.observation = buildObservation(before, snap, newTabs, blockedPopups);
   return result;
 }
 
@@ -261,13 +264,21 @@ export async function handleWebAgent(body = {}) {
 
   // Every state-changing action returns a fresh DOM read (legacy behavior)
   // plus an observation of what actually changed.
+  const blockedPopups = session.takeBlockedPopups ? session.takeBlockedPopups() : [];
   if (!['screenshot', 'listTabs', 'closeTab'].includes(action)) {
     if (newTabs.length > 0) {
       const next = session.getTab(session.activeTabId) || tab;
+      // An adopted popup is unverified until now: re-check where it landed
+      // before its DOM is handed to the model (H2).
+      const landedPopup = checkLandedUrl(next.page);
+      if (!landedPopup.ok) {
+        try { await session.closeTab(next.id); } catch { /* best effort */ }
+        return { success: false, action, error: landedPopup.error };
+      }
       result.tabId = next.id;
-      await attachSnapshot(result, next.page, opts, before, newTabs);
+      await attachSnapshot(result, next.page, opts, before, newTabs, blockedPopups);
     } else {
-      await attachSnapshot(result, page, opts, before);
+      await attachSnapshot(result, page, opts, before, [], blockedPopups);
     }
   }
   return result;

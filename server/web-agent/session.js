@@ -7,6 +7,7 @@
 import puppeteer from 'puppeteer';
 import { readEnv } from '../lib/env.js';
 import { NAV_TIMEOUT, ACTION_TIMEOUT } from './validate.js';
+import { checkUrlForAgent } from '../security/network-policy.js';
 
 let singleton = null;
 
@@ -16,6 +17,7 @@ export class BrowserSession {
     this.pages = new Map();       // tabId -> Page
     this.activeTabId = null;
     this.tabCounter = 0;
+    this.blockedPopups = [];      // popups refused by policy since the last drain
   }
 
   /* ---------------- lifecycle ---------------- */
@@ -100,6 +102,11 @@ export class BrowserSession {
    * Adopts browser pages the agent never created — target=_blank popups and
    * window.open links. The newest popup becomes the active tab, since popups
    * are almost always the effect the task wants to follow.
+   *
+   * H2: a page the agent did not open is exactly where a hostile page can
+   * redirect it, so every adopted tab is validated against the agent URL
+   * policy. Refused popups are closed and reported, never silently tracked.
+   *
    * @returns {string[]} ids of newly adopted tabs
    */
   async adoptPopups() {
@@ -110,9 +117,34 @@ export class BrowserSession {
     const adopted = [];
     for (const page of open) {
       if (tracked.has(page) || page.isClosed()) continue;
+
+      const verdict = this._checkPopupUrl(page);
+      if (!verdict.ok) {
+        this.blockedPopups.push({ url: verdict.url, reason: verdict.reason });
+        try { await page.close(); } catch { /* best effort */ }
+        continue;
+      }
       adopted.push(this._registerPage(page));
     }
     return adopted;
+  }
+
+  /** @returns {{ok: boolean, url?: string, reason?: string}} */
+  _checkPopupUrl(page) {
+    let url = '';
+    try { url = page.url(); } catch { /* treat as unverifiable */ }
+    // A popup mid-flight may still be blank; the engine re-validates the
+    // landed URL before its content is ever read (defence in depth).
+    if (!url || url === 'about:blank') return { ok: true, url };
+    const check = checkUrlForAgent(url);
+    return check.ok ? { ok: true, url } : { ok: false, url, reason: check.reason };
+  }
+
+  /** Returns popups refused since the last call and clears the record. */
+  takeBlockedPopups() {
+    const blocked = this.blockedPopups;
+    this.blockedPopups = [];
+    return blocked;
   }
 
   async closeTab(tabId) {
