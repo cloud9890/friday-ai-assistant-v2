@@ -118,6 +118,36 @@ export function checkReadPath(target) {
 }
 
 /**
+ * Segments the knowledge indexer must never crawl, even inside a read root:
+ * build output, dependency trees, VCS metadata, and FRIDAY's own data store
+ * (which holds the index, memory and the audit log).
+ */
+const INDEX_DENY_SEGMENTS = [
+  'node_modules', 'data', '.git', 'dist', 'build', 'out', 'target',
+  '.cache', '.next', '.venv', 'venv', '__pycache__', '$recycle.bin',
+  'appdata', 'windows', 'program files', 'program files (x86)'
+];
+
+/**
+ * Validates a folder/file for indexing (Phase B KNOWLEDGEABLE). This is a read
+ * plus an exfiltration surface: the result is embedded and fed back into the
+ * model's context, so it is checked like a read AND restricted to segments the
+ * indexer should never ingest (M-spec §3, "denies data/, .git, node_modules").
+ *
+ * @returns {{ok: boolean, reason?: string}}
+ */
+export function checkIndexPath(target) {
+  const read = checkReadPath(target);
+  if (!read.ok) return read;
+
+  const segments = normalize(target).split(/[\\/]/).filter(Boolean);
+  for (const seg of segments) {
+    if (INDEX_DENY_SEGMENTS.includes(seg)) return { ok: false, reason: `excluded from indexing: ${seg}` };
+  }
+  return { ok: true };
+}
+
+/**
  * Validates a delete target. Stricter than writes: the path must sit strictly
  * BELOW an allowed write root, so the roots themselves can never be removed.
  * @returns {{ok: boolean, reason?: string}}

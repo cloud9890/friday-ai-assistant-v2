@@ -10,7 +10,7 @@ import { DECISION, RISK, deny } from './risk.js';
 import { PERMISSION, getToolMetadata, validateInput } from './permissions.js';
 import { resolveApp, validateProcessTarget, SENSITIVE_EXECUTABLES } from './app-policy.js';
 import { checkUrl, checkUrlForAgent } from './network-policy.js';
-import { checkWritePath, checkReadPath, checkDeletePath, checkFileName } from './path-policy.js';
+import { checkWritePath, checkReadPath, checkDeletePath, checkFileName, checkIndexPath } from './path-policy.js';
 import { documentsDir, desktopDir, homeDir } from '../lib/paths.js';
 import { auditEvent } from './audit.js';
 
@@ -99,6 +99,28 @@ function checkPermission(permission, args, tool) {
       if (Array.isArray(args.__readDirs)) {
         for (const dir of args.__readDirs) {
           const check = checkReadPath(dir);
+          if (!check.ok) return { reason: check.reason };
+        }
+      }
+      return null;
+    }
+
+    case PERMISSION.INDEX_READ: {
+      // Knowledge indexing reads files whose text is embedded and fed back to
+      // the model, so it validates the resolved path exactly like READ_FILES
+      // (C1) and additionally refuses the segments the indexer must not crawl
+      // (FRIDAY's own data/, .git, node_modules) — checkIndexPath.
+      if (args.__fileName !== undefined) {
+        const file = checkFileName(args.__fileName);
+        if (!file.ok) return { reason: file.reason };
+      }
+      if (args.__targetPath !== undefined) {
+        const target = checkIndexPath(args.__targetPath);
+        if (!target.ok) return { reason: target.reason };
+      }
+      if (Array.isArray(args.__readDirs)) {
+        for (const dir of args.__readDirs) {
+          const check = checkIndexPath(dir);
           if (!check.ok) return { reason: check.reason };
         }
       }

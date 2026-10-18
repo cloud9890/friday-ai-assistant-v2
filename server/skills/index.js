@@ -30,6 +30,9 @@ import set_reminder from './set_reminder.js';
 import list_tasks from './list_tasks.js';
 import cancel_task from './cancel_task.js';
 import send_notification from './send_notification.js';
+import index_folder from './index_folder.js';
+import search_knowledge from './search_knowledge.js';
+import ask_my_document from './ask_my_document.js';
 
 export default [
   open_desktop_app,
@@ -58,5 +61,8 @@ export default [
   set_reminder,
   list_tasks,
   cancel_task,
-  send_notification
+  send_notification,
+  index_folder,
+  search_knowledge,
+  ask_my_document
 ];
