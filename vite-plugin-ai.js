@@ -12,7 +12,7 @@
    ========================================================================== */
 
 import { createProviders, createChat } from './server/lib/providers.js';
-import { createOriginGuard } from './server/middleware/origin-guard.js';
+import { installOriginGuard } from './server/middleware/origin-guard.js';
 import { installApiAuth } from './server/middleware/api-auth.js';
 
 const ELEVENLABS_URL = 'https://api.elevenlabs.io/v1/text-to-speech';
@@ -166,7 +166,7 @@ export default function fridayAiPlugin(env = {}) {
   }
 
   function attach(server) {
-    server.middlewares.use(createOriginGuard());
+    installOriginGuard(server);
     installApiAuth(server); // local session cookie in front of every /api/* route
     server.middlewares.use('/api/health', handleHealth);
     server.middlewares.use('/api/chat', handleChat);

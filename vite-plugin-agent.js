@@ -14,9 +14,9 @@
 import { createChat } from './server/lib/providers.js';
 import { runAgentTurn } from './server/agent/loop.js';
 import { primeStartAppsCache } from './server/lib/app-launcher.js';
-import { createOriginGuard } from './server/middleware/origin-guard.js';
+import { installOriginGuard } from './server/middleware/origin-guard.js';
 import { installApiAuth } from './server/middleware/api-auth.js';
-import { allFacts, lastEpisodes } from './server/memory/store.js';
+import { allFacts, recentFacts, lastEpisodes } from './server/memory/store.js';
 import { startScheduler, pendingJobs } from './server/lib/scheduler.js';
 import { notify, listNotifications, latestNotificationId } from './server/lib/notify.js';
 
@@ -125,7 +125,7 @@ export default function fridayAgentPlugin(env = {}) {
   }
 
   function attach(server) {
-    server.middlewares.use(createOriginGuard());
+    installOriginGuard(server);
     installApiAuth(server); // local session cookie in front of every /api/* route
     primeStartAppsCache(); // resolve installed/Store app names for the launch policy
     startScheduler({ onFire: deliverReminder }); // proactive jobs (catch-up on boot)
@@ -133,7 +133,7 @@ export default function fridayAgentPlugin(env = {}) {
 
     // Read-only memory snapshot for the HUD's MEMORY CORE card.
     server.middlewares.use('/api/memory', (req, res) => {
-      const facts = allFacts().slice(-6).reverse();
+      const facts = recentFacts(6); // newest first — same rule the agent context uses (M2)
       res.setHeader('Content-Type', 'application/json');
       res.end(JSON.stringify({
         factsCount: allFacts().length,

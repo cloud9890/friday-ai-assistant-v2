@@ -4,14 +4,16 @@
    knows the user across restarts. Token-budgeted: ~10 facts + last 3 episodes.
    ========================================================================== */
 
-import { allFacts, lastEpisodes } from './store.js';
+import { recentFacts, lastEpisodes } from './store.js';
 
 export function memoryContextBlock() {
   const parts = [];
 
-  const facts = allFacts();
+  // M2: the newest facts, not the first-inserted ones — the agent was being fed
+  // the oldest 10 while the HUD showed the newest 6.
+  const facts = recentFacts(10);
   if (facts.length > 0) {
-    const lines = facts.slice(0, 10).map(f => `- ${f.key}: ${f.value}`);
+    const lines = facts.map(f => `- ${f.key}: ${f.value}`);
     parts.push(`Permanent facts you know about the user:\n${lines.join('\n')}`);
   }
 

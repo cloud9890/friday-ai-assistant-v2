@@ -47,10 +47,17 @@ export function saveFact(key, value) {
   const cleanKey = String(key || '').trim().slice(0, 64);
   const cleanValue = String(value || '').trim().slice(0, MAX_VALUE_CHARS);
   if (!cleanKey || !cleanValue) return false;
-  const existing = store.facts.find(f => f.key === cleanKey);
+  // M3: keys are matched case-insensitively, exactly like deleteFact — otherwise
+  // "Favourite_Music" and "favourite_music" become two facts that one forget wipes.
+  // The first spelling wins so the key the user sees never changes casing on update.
+  const existing = store.facts.find(f => f.key.toLowerCase() === cleanKey.toLowerCase());
   if (existing) {
     existing.value = cleanValue;
     existing.updatedAt = new Date().toISOString();
+    // Recency = array order: an update moves the fact to the end, so ordering
+    // never depends on clock resolution and matches searchFacts' intent.
+    store.facts.splice(store.facts.indexOf(existing), 1);
+    store.facts.push(existing);
   } else {
     store.facts.push({ key: cleanKey, value: cleanValue, updatedAt: new Date().toISOString() });
     while (store.facts.length > MAX_FACTS) store.facts.shift();
@@ -81,6 +88,17 @@ export function searchFacts(query) {
     ? store.facts.filter(f => f.key.toLowerCase().includes(q) || f.value.toLowerCase().includes(q))
     : store.facts.slice();
   return facts.sort((a, b) => (b.updatedAt || '').localeCompare(a.updatedAt || ''));
+}
+
+/**
+ * The n most recently updated facts, newest first.
+ *
+ * Array order is recency order (an update moves a fact to the end), which is
+ * the single rule the agent context and the HUD both read from — so the two
+ * can no longer disagree about which facts are "newest" (M2).
+ */
+export function recentFacts(n = 10) {
+  return load().facts.slice(-n).reverse();
 }
 
 export function appendEpisode(entry) {
