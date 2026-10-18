@@ -26,6 +26,10 @@ import analyze_screen from './analyze_screen.js';
 import remember_fact from './remember_fact.js';
 import recall_facts from './recall_facts.js';
 import forget_fact from './forget_fact.js';
+import set_reminder from './set_reminder.js';
+import list_tasks from './list_tasks.js';
+import cancel_task from './cancel_task.js';
+import send_notification from './send_notification.js';
 
 export default [
   open_desktop_app,
@@ -50,5 +54,9 @@ export default [
   analyze_screen,
   remember_fact,
   recall_facts,
-  forget_fact
+  forget_fact,
+  set_reminder,
+  list_tasks,
+  cancel_task,
+  send_notification
 ];

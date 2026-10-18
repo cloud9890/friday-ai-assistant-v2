@@ -17,6 +17,8 @@ import { primeStartAppsCache } from './server/lib/app-launcher.js';
 import { createOriginGuard } from './server/middleware/origin-guard.js';
 import { installApiAuth } from './server/middleware/api-auth.js';
 import { allFacts, lastEpisodes } from './server/memory/store.js';
+import { startScheduler, pendingJobs } from './server/lib/scheduler.js';
+import { notify, listNotifications, latestNotificationId } from './server/lib/notify.js';
 
 const MAX_MESSAGES = 40;
 const MAX_CONTENT_CHARS = 8000;
@@ -25,6 +27,13 @@ function sendJson(res, statusCode, payload) {
   res.statusCode = statusCode;
   res.setHeader('Content-Type', 'application/json');
   res.end(JSON.stringify(payload));
+}
+
+/** Query params of a connect request, whatever the mount stripped. */
+function queryOf(req) {
+  const raw = String(req.originalUrl || req.url || '');
+  const q = raw.indexOf('?');
+  return new URLSearchParams(q === -1 ? '' : raw.slice(q + 1));
 }
 
 function readJsonBody(req, limitBytes = 4_000_000) {
@@ -52,6 +61,11 @@ function sanitizeHistory(messages) {
     .filter(m => m && (m.role === 'user' || m.role === 'assistant') && typeof m.content === 'string')
     .slice(-MAX_MESSAGES)
     .map(m => ({ role: m.role, content: m.content.slice(0, MAX_CONTENT_CHARS) }));
+}
+
+/** A due job becomes a native toast + HUD notification + spoken line. */
+function deliverReminder(job) {
+  return notify({ title: 'F.R.I.D.A.Y. REMINDER', body: job.text, speak: true });
 }
 
 export default function fridayAgentPlugin(env = {}) {
@@ -114,6 +128,7 @@ export default function fridayAgentPlugin(env = {}) {
     server.middlewares.use(createOriginGuard());
     installApiAuth(server); // local session cookie in front of every /api/* route
     primeStartAppsCache(); // resolve installed/Store app names for the launch policy
+    startScheduler({ onFire: deliverReminder }); // proactive jobs (catch-up on boot)
     server.middlewares.use('/api/agent', handleAgent);
 
     // Read-only memory snapshot for the HUD's MEMORY CORE card.
@@ -125,6 +140,28 @@ export default function fridayAgentPlugin(env = {}) {
         facts: facts.map(f => ({ key: f.key, value: f.value, updatedAt: f.updatedAt })),
         episodes: lastEpisodes(3).reverse()
       }));
+    });
+
+    // Pending reminders for the HUD's TASKS card.
+    server.middlewares.use('/api/tasks', (req, res) => {
+      const pending = pendingJobs();
+      sendJson(res, 200, {
+        count: pending.length,
+        tasks: pending.map(j => ({ id: j.id, text: j.text, at: j.at, kind: j.kind }))
+      });
+    });
+
+    // Proactive delivery. With no `since` the HUD is seeding (or a fresh
+    // browser) and gets only the current high-water mark, so opening the app
+    // never replays a backlog of old toasts.
+    server.middlewares.use('/api/notifications', (req, res) => {
+      const params = queryOf(req);
+      const since = params.get('since');
+      if (since === null) return sendJson(res, 200, { latestId: latestNotificationId(), notifications: [] });
+      return sendJson(res, 200, {
+        latestId: latestNotificationId(),
+        notifications: listNotifications({ sinceId: Number(since) })
+      });
     });
   }
 

@@ -41,6 +41,7 @@ class FridayApp {
     this.linkDegraded = false;
     this.baseLinkState = null;
     this.tickerEvents = [];
+    this.lastNotifyId = null;            // high-water mark for proactive toasts
 
     this.initDOM();
 
@@ -59,6 +60,10 @@ class FridayApp {
     this.bootstrap();
     this.refreshMemoryCore();
     setInterval(() => this.refreshMemoryCore(), 20000);
+    this.refreshTasks();
+    setInterval(() => this.refreshTasks(), 15000);
+    this.pollNotifications();
+    setInterval(() => this.pollNotifications(), 5000);
 
     // Always-on wake word: the mic goes hot on page load. Chromium's
     // AudioContext needs one user gesture before it will analyse audio.
@@ -119,6 +124,11 @@ class FridayApp {
     this.activityList = document.getElementById('activityList');
     this.memoryCount = document.getElementById('memoryCount');
     this.memoryList = document.getElementById('memoryList');
+
+    // Scheduled tasks + proactive toasts
+    this.taskCount = document.getElementById('taskCount');
+    this.taskList = document.getElementById('taskList');
+    this.notifyToasts = document.getElementById('notifyToasts');
 
     // Checks & overlay
     this.btnRunDiagnostics = document.getElementById('btnRunDiagnostics');
@@ -370,6 +380,106 @@ class FridayApp {
     } catch (e) { /* the memory panel is an optional surface */ }
   }
 
+  /* Schedule card: the reminders F.R.I.D.A.Y. will fire, soonest first. */
+  async refreshTasks() {
+    if (!this.taskList) return;
+    try {
+      const res = await fetch('/api/tasks');
+      const data = await res.json();
+      const tasks = data.tasks || [];
+      if (this.taskCount) {
+        this.taskCount.textContent = `${data.count || 0} PENDING`;
+      }
+      this.taskList.innerHTML = '';
+      if (tasks.length === 0) {
+        const li = document.createElement('li');
+        li.className = 'task-item empty';
+        li.textContent = 'Nothing scheduled — ask me to remind you of something, Boss.';
+        this.taskList.appendChild(li);
+        return;
+      }
+      for (const task of tasks) {
+        const when = new Date(task.at);
+        const sameDay = when.toDateString() === new Date().toDateString();
+        const li = document.createElement('li');
+        li.className = 'task-item';
+        const time = document.createElement('span');
+        time.className = 't-time';
+        time.textContent = when.toLocaleString([], sameDay
+          ? { hour: '2-digit', minute: '2-digit' }
+          : { weekday: 'short', hour: '2-digit', minute: '2-digit' });
+        const text = document.createElement('span');
+        text.className = 't-text';
+        text.textContent = task.text;
+        li.appendChild(time);
+        li.appendChild(text);
+        this.taskList.appendChild(li);
+      }
+    } catch (e) { /* the schedule panel is an optional surface */ }
+  }
+
+  /* ------------------------------------------------------------------------
+     PROACTIVE DELIVERY (reminders + notifications)
+     The server holds the queue; we ask for everything newer than the last id
+     we saw. localStorage keys that watermark so a reload does not replay old
+     toasts, while a reminder that fired with the tab closed still lands.
+     ------------------------------------------------------------------------ */
+  async pollNotifications() {
+    try {
+      const stored = localStorage.getItem('friday_last_notify_id');
+      if (this.lastNotifyId === null) {
+        this.lastNotifyId = (stored === null || stored === '') ? -1 : Number(stored);
+      }
+
+      const seeding = this.lastNotifyId < 0;
+      const url = seeding ? '/api/notifications' : `/api/notifications?since=${this.lastNotifyId}`;
+      const res = await fetch(url);
+      const data = await res.json();
+
+      if (typeof data.latestId === 'number') {
+        this.lastNotifyId = data.latestId;
+        localStorage.setItem('friday_last_notify_id', String(data.latestId));
+      }
+      for (const item of data.notifications || []) this.deliverNotification(item);
+    } catch (e) { /* delivery is best-effort; the next poll retries */ }
+  }
+
+  deliverNotification(item) {
+    const body = String(item.body || '').trim();
+    if (!body) return;
+
+    this.logEvent(`Alert — ${body.slice(0, 60)}`);
+    this.showNotificationToast(item.title || 'F.R.I.D.A.Y.', body);
+    if (item.speak !== false) this.voiceEngine.speak(body);
+  }
+
+  showNotificationToast(title, body) {
+    if (!this.notifyToasts) return;
+    // Cap the stack so a burst cannot cover the HUD.
+    while (this.notifyToasts.children.length >= 3) {
+      this.notifyToasts.removeChild(this.notifyToasts.firstChild);
+    }
+    const toast = document.createElement('div');
+    toast.className = 'notify-toast';
+    const head = document.createElement('span');
+    head.className = 'n-title';
+    head.textContent = title;
+    const text = document.createElement('span');
+    text.className = 'n-body';
+    text.textContent = body;
+    const dismiss = document.createElement('button');
+    dismiss.className = 'n-dismiss';
+    dismiss.textContent = '×';
+    toast.appendChild(head);
+    toast.appendChild(text);
+    toast.appendChild(dismiss);
+
+    const remove = () => { if (toast.parentNode) toast.parentNode.removeChild(toast); };
+    dismiss.addEventListener('click', () => { soundFX.playClick(); remove(); });
+    this.notifyToasts.appendChild(toast);
+    setTimeout(remove, 15000);
+  }
+
   /* ------------------------------------------------------------------------
      CLOCK
      ------------------------------------------------------------------------ */
@@ -489,6 +599,7 @@ class FridayApp {
     this.uiManager.updateVoiceUIStatus('standby');
     this.voiceEngine.speak(reply);
     this.refreshMemoryCore();
+    this.refreshTasks();
   }
 
   /* Friendly HUD labels for tool names — the raw skill name is plumbing. */
@@ -513,7 +624,11 @@ class FridayApp {
     analyze_screen: 'SCREEN ANALYSIS',
     remember_fact: 'MEMORY WRITE',
     recall_facts: 'MEMORY RECALL',
-    forget_fact: 'MEMORY ERASE'
+    forget_fact: 'MEMORY ERASE',
+    set_reminder: 'REMINDER SET',
+    list_tasks: 'SCHEDULE READ',
+    cancel_task: 'REMINDER CANCEL',
+    send_notification: 'NOTIFY'
   };
 
   displayActions(actions) {

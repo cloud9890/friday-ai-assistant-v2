@@ -118,13 +118,33 @@ async function processBatch(chat, messages, batch, batchIndex, actions, onEvent,
 }
 
 /**
- * Deterministic nudge for unambiguous memory intents small models tend to
- * answer from text instead of calling the tool. Patterns are deliberately
- * strict — "remember to open notepad" or "recall the file" must NOT trigger
- * a memory tool. Injected as a system message just for that turn.
+ * Deterministic nudge for unambiguous memory/reminder intents small models
+ * tend to answer from text instead of calling the tool. Patterns are
+ * deliberately strict — "remember to open notepad" or "recall the file" must
+ * NOT trigger a memory tool. Injected as a system message just for that turn.
  */
 function intentBooster(userText) {
   const t = String(userText || '').toLowerCase();
+
+  // --- Reminders / scheduled tasks (checked before memory: "forget my
+  // reminder" is a task cancel, not a memory erase) ---
+  const isReminderWrite = /\bremind me (to|in|at|about|when)\b/.test(t)
+    || /^\s*(please\s+)?(set|create) (a |an )?(reminder|alarm)\b/.test(t)
+    || /\b(wake me|notify me) (up )?(at|in)\b/.test(t);
+  const isReminderErase = /\b(cancel|delete|remove|drop|forget)\b[^.]*\b(reminder|alarm|task)s?\b/.test(t);
+  const isReminderRead = /\b(list|show|check|read)\b[^.]*\b(reminders?|alarms?|tasks?)\b/.test(t)
+    || /\bwhat('s| is) (scheduled|pending|on my (list|schedule))\b/.test(t)
+    || /\bwhat (reminders|tasks|alarms)\b/.test(t);
+
+  if (isReminderWrite) {
+    return { role: 'system', content: 'Directive: the user wants a REMINDER. Call set_reminder now with a short "text" and a time: use delay_minutes for a relative time ("in 10 minutes"), or call get_current_time first and then pass `when` as an ISO 8601 date-time for a clock time. Then confirm briefly. Do not say a reminder is set without calling the tool.' };
+  }
+  if (isReminderErase) {
+    return { role: 'system', content: 'Directive: the user wants a scheduled REMINDER cancelled. Call cancel_task (pass the id if you know it, otherwise a piece of its text). If it is ambiguous, call list_tasks and ask which one. Do not answer from text alone.' };
+  }
+  if (isReminderRead) {
+    return { role: 'system', content: 'Directive: the user asks what is SCHEDULED. Call list_tasks and report the pending items in natural speech. Do not answer from text alone.' };
+  }
 
   // "remember that...", "note down...", "keep in mind..." (memory writes)
   const isWrite = /^\s*(please\s+)?(remember|note down|keep in mind|store this)\b/.test(t)

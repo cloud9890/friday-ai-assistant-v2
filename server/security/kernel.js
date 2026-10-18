@@ -21,8 +21,12 @@ function fail(reason) {
 /**
  * Runs the policy for one permission. Returns null when the permission has no
  * additional constraint beyond the risk level.
+ *
+ * @param {string} permission
+ * @param {object} args  validated args, plus internal __-hints
+ * @param {string} tool  capability key, for permissions shared by many skills
  */
-function checkPermission(permission, args) {
+function checkPermission(permission, args, tool) {
   switch (permission) {
     case PERMISSION.LAUNCH_PROCESS: {
       if (args.appName !== undefined) {
@@ -135,6 +139,54 @@ function checkPermission(permission, args) {
       return null;
     }
 
+    case PERMISSION.SCHEDULE_WRITE: {
+      // Only the reminder-creating skill carries a timestamp; cancel_task
+      // shares the permission but has nothing time-shaped to certify.
+      if (tool !== 'set_reminder') return null;
+
+      if (typeof args.text !== 'string' || args.text.trim().length < 2) {
+        return { reason: 'text is required' };
+      }
+
+      const when = args.when;
+      const delay = args.delay_minutes;
+      const hasWhen = typeof when === 'string' && when.trim() !== '';
+      const hasDelay = delay !== undefined && delay !== null;
+
+      if (!hasWhen && !hasDelay) return { reason: 'set_reminder needs either "when" or "delay_minutes"' };
+      if (hasWhen && hasDelay) return { reason: 'set_reminder takes either "when" or "delay_minutes", not both' };
+
+      if (hasDelay) {
+        if (typeof delay !== 'number' || !Number.isFinite(delay)) {
+          return { reason: 'delay_minutes must be a number' };
+        }
+        if (delay <= 0 || delay > 43200) {
+          return { reason: 'delay_minutes must be greater than 0 and at most 43200 (30 days)' };
+        }
+      }
+
+      if (hasWhen) {
+        const at = Date.parse(when);
+        if (Number.isNaN(at)) return { reason: 'when must be an ISO 8601 date-time (e.g. 2026-10-18T17:30:00)' };
+        const delta = at - Date.now();
+        if (delta < -60000) return { reason: 'when is in the past' };
+        if (delta > 366 * 24 * 60 * 60 * 1000) return { reason: 'when must be within the next year' };
+      }
+      return null;
+    }
+
+    case PERMISSION.NOTIFY: {
+      const message = args.message;
+      if (typeof message !== 'string' || message.trim().length < 2) {
+        return { reason: 'message is required' };
+      }
+      if (message.length > 500) return { reason: 'message must be 500 characters or fewer' };
+      return null;
+    }
+
+    case PERMISSION.SCHEDULE_READ:
+      return null;
+
     default:
       return null;
   }
@@ -212,7 +264,7 @@ export function authorize(request = {}) {
 
   // 4. Permission-specific policy.
   for (const permission of meta.permissions) {
-    const result = checkPermission(permission, args);
+    const result = checkPermission(permission, args, tool);
     if (result && result.reason) {
       return finish(fail(result.reason));
     }

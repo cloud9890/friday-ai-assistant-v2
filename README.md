@@ -36,6 +36,15 @@ says so instead of inventing data.
 - **Long-term memory** — Friday remembers facts and preferences across
   restarts ("remember that…", "what do you remember about me?"), plus an
   episodic log of recent interactions injected into every conversation.
+- **Proactive reminders & tasks** — Friday can act on her own schedule:
+  "remind me in 10 minutes to stretch" or "remind me at 17:30 to call Pepper".
+  Jobs persist in `data/jobs.json` and **survive a restart** (anything that
+  came due while the server was down fires on boot). When one lands you get a
+  native Windows toast, a live HUD alert on the SCHEDULE card, and a spoken
+  line. Manage them by voice — *"what's on my schedule?"*, *"cancel the
+  stretch reminder"* — and `send_notification` covers one-off alerts. The
+  timestamp is certified by the policy kernel (`schedule:write`) before
+  anything is stored.
 - **Screen awareness** — toggle SHARE SCREEN in the header and Friday can see
   your display: "look at my screen and read this error".
 - **Streaming responses** — replies stream in token-by-token and every tool
@@ -100,7 +109,9 @@ cross-site Origins. Every `/api/*` request (other than the liveness route)
 also requires a local session cookie — an HttpOnly, `SameSite=Strict`
 `friday_sid` token issued to the same-origin UI when it loads. Deletion
 requires an explicit user confirmation in the UI
-before it executes. Policy regression tests: `npm test`.
+before it executes, and proactive reminders are time-certified by the same
+kernel (`schedule:write`: an ISO timestamp or a bounded delay, never a past
+time). Policy regression tests: `npm test`.
 
 ## Setup
 
@@ -159,6 +170,9 @@ npm run preview
 | `/api/chat` | POST | Plain chat completion (cloud / Ollama) |
 | `/api/tts` | POST | ElevenLabs speech audio (audio/mpeg) |
 | `/api/health` | GET | Provider status; also used to measure link latency |
+| `/api/memory` | GET | Long-term memory snapshot for the HUD card |
+| `/api/tasks` | GET | Pending reminders for the HUD schedule card |
+| `/api/notifications` | GET | Proactive alerts newer than `?since=<id>` (no `since` = seed only) |
 
 ## Project layout
 
@@ -182,6 +196,7 @@ server/agent/           ReAct loop, streaming, system prompt
 server/security/        Policy kernel, path/network/app policies, audit trail
 server/memory/          Persistent long-term memory (facts + episodes)
 server/web-agent/       Puppeteer browser automation engine
-server/lib/             Providers (cloud/Ollama), app launcher, docx writer, paths
+server/lib/             Providers (cloud/Ollama), app launcher, docx writer,
+                        paths, scheduler (proactive jobs), notifier (toasts)
 test/                   Policy, registry and memory regression tests (npm test)
 ```

@@ -60,6 +60,9 @@ export const PERMISSION = {
   SCREEN_CAPTURE: 'screen:capture',
   MEMORY_READ: 'memory:read',
   MEMORY_WRITE: 'memory:write',
+  SCHEDULE_READ: 'schedule:read',
+  SCHEDULE_WRITE: 'schedule:write',
+  NOTIFY: 'notify',
   MODEL_INVOKE: 'model:invoke',
   SCRIPT_EXECUTE: 'script:execute'
 };
