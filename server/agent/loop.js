@@ -182,6 +182,22 @@ function intentBooster(userText) {
   if (isRunCommand) {
     return { role: 'system', content: 'Directive: the user wants a command run on this PC. Call run_command with "command" (a bare program name such as "git") and "args" as an array (e.g. ["status", "--short"]). Read-only commands run immediately; anything else asks Boss to approve first. Report the real output — never invent it.' };
   }
+
+  // --- File automation: organise / zip / convert (Phase C tail) ---
+  const isOrganize = /\b(organi[sz]e|tidy|clean up|sort)\b[^.]*\b(folder|files|desktop|documents|downloads)\b/.test(t);
+  const isZip = /\b(zip|compress|archive)\b[^.]*\b(folder|files|desktop|documents)\b/.test(t)
+    || /\b(make|create|build)\b[^.]*\bzip\b/.test(t);
+  const isConvert = /\b(convert|change)\b[^.]*\b(image|picture|photo|png|jpe?g|bmp)\b/.test(t);
+
+  if (isOrganize) {
+    return { role: 'system', content: 'Directive: the user wants a folder TIDIED. Call organize_files with a "parent" ("desktop" or "documents") and, if they named a subfolder, a "folder". Boss approves the plan before anything moves. Do not answer from text alone.' };
+  }
+  if (isZip) {
+    return { role: 'system', content: 'Directive: the user wants a folder COMPRESSED. Call zip_folder with "name" (the folder name) and "parent" ("desktop" or "documents"). It creates a .zip beside the folder. Do not answer from text alone.' };
+  }
+  if (isConvert) {
+    return { role: 'system', content: 'Directive: the user wants an IMAGE converted. Call convert_image with "name" (the image file name with its extension), "parent" ("desktop" or "documents") and "format" (png, jpg or bmp). Do not answer from text alone.' };
+  }
   return null;
 }
 

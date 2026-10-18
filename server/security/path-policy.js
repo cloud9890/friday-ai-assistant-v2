@@ -163,6 +163,36 @@ export function checkDeletePath(target) {
 }
 
 /**
+ * Validates one move of a bulk reorganisation (Phase C tail, `organize_files`).
+ *
+ * A move is a write to the destination AND a removal from the source, so it is
+ * certified as BOTH: the source must be deletable (strictly below an allowed
+ * write root, never the root itself) and the destination must be writable. This
+ * is the "move policy" the handoff called for — it exists in the kernel, not in
+ * a skill file, so no skill can grant itself a move the policy has not seen.
+ *
+ * @param {{from: string, to: string}} move
+ * @returns {{ok: boolean, reason?: string}}
+ */
+export function checkMovePath(move) {
+  if (!move || typeof move !== 'object') return { ok: false, reason: 'invalid move' };
+
+  const from = checkDeletePath(move.from); // strictly below a write root
+  if (!from.ok) return { ok: false, reason: `move source: ${from.reason}` };
+
+  const to = checkWritePath(move.to);
+  if (!to.ok) return { ok: false, reason: `move destination: ${to.reason}` };
+
+  const src = normalize(move.from);
+  const dst = normalize(move.to);
+  if (src === dst) return { ok: false, reason: 'move source and destination are the same' };
+  if (dst.startsWith(src + path.sep.toLowerCase()) || dst.startsWith(src + '/')) {
+    return { ok: false, reason: 'cannot move a folder into itself' };
+  }
+  return { ok: true };
+}
+
+/**
  * Validates a user-supplied file name (no separators, no reserved names).
  * @returns {{ok: boolean, reason?: string}}
  */

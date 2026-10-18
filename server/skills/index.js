@@ -34,6 +34,9 @@ import index_folder from './index_folder.js';
 import search_knowledge from './search_knowledge.js';
 import ask_my_document from './ask_my_document.js';
 import run_command from './run_command.js';
+import organize_files from './organize_files.js';
+import zip_folder from './zip_folder.js';
+import convert_image from './convert_image.js';
 
 export default [
   open_desktop_app,
@@ -66,5 +69,8 @@ export default [
   index_folder,
   search_knowledge,
   ask_my_document,
-  run_command
+  run_command,
+  organize_files,
+  zip_folder,
+  convert_image
 ];

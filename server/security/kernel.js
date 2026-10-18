@@ -10,7 +10,7 @@ import { DECISION, RISK, CONFIRMATION, deny } from './risk.js';
 import { PERMISSION, getToolMetadata, validateInput } from './permissions.js';
 import { resolveApp, validateProcessTarget, SENSITIVE_EXECUTABLES } from './app-policy.js';
 import { checkUrl, checkUrlForAgent } from './network-policy.js';
-import { checkWritePath, checkReadPath, checkDeletePath, checkFileName, checkIndexPath } from './path-policy.js';
+import { checkWritePath, checkReadPath, checkDeletePath, checkFileName, checkIndexPath, checkMovePath } from './path-policy.js';
 import { classifyCommand, COMMAND_DECISION } from './command-policy.js';
 import { documentsDir, desktopDir, homeDir } from '../lib/paths.js';
 import { auditEvent } from './audit.js';
@@ -18,6 +18,9 @@ import { auditEvent } from './audit.js';
 function fail(reason) {
   return deny(reason);
 }
+
+/** Upper bound on one bulk reorganisation, so a plan cannot be unbounded. */
+export const MAX_MOVES = 200;
 
 /**
  * Runs the policy for one permission. Returns null when the permission has no
@@ -152,6 +155,22 @@ function checkPermission(permission, args, tool) {
       return null;
     }
 
+    case PERMISSION.MOVE_FILES: {
+      // Bulk reorganisation. The skill plans the moves by reading the folder;
+      // the kernel certifies EVERY pair against the move policy and the skill
+      // then applies exactly the plan it was given — policy decides, executor
+      // obeys. A plan that is missing, empty or too large fails closed.
+      const moves = args.__moves;
+      if (!Array.isArray(moves)) return { reason: 'no move plan was provided' };
+      if (moves.length === 0) return { reason: 'nothing to move' };
+      if (moves.length > MAX_MOVES) return { reason: `too many files to move at once (max ${MAX_MOVES})` };
+      for (const move of moves) {
+        const check = checkMovePath(move);
+        if (!check.ok) return { reason: check.reason };
+      }
+      return null;
+    }
+
     case PERMISSION.NETWORK_FETCH: {
       const url = args.url;
       if (typeof url === 'string' && url.trim()) {
@@ -259,7 +278,7 @@ export function authorize(request = {}) {
   const args = { ...(request.args || {}) };
 
   // Internal hints travel alongside args but are not part of the tool schema.
-  for (const key of ['__fileName', '__targetPath', '__readDirs', '__viaAgent']) {
+  for (const key of ['__fileName', '__targetPath', '__readDirs', '__moves', '__viaAgent']) {
     if (request[key] !== undefined) args[key] = request[key];
   }
 

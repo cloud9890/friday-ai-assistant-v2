@@ -51,6 +51,7 @@ export const PERMISSION = {
   READ_FILES: 'read:files',
   WRITE_FILES: 'write:files',
   DELETE_FILES: 'delete:files',
+  MOVE_FILES: 'move:files',
   LAUNCH_PROCESS: 'launch:process',
   CONTROL_MEDIA: 'control:media',
   CONTROL_VOLUME: 'control:volume',
