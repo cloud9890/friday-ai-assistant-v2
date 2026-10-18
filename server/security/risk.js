@@ -65,5 +65,6 @@ export const PERMISSION = {
   SCHEDULE_WRITE: 'schedule:write',
   NOTIFY: 'notify',
   MODEL_INVOKE: 'model:invoke',
-  SCRIPT_EXECUTE: 'script:execute'
+  SCRIPT_EXECUTE: 'script:execute',
+  EXEC_COMMAND: 'exec:command'
 };

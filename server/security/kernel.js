@@ -6,11 +6,12 @@
    ========================================================================== */
 
 import path from 'path';
-import { DECISION, RISK, deny } from './risk.js';
+import { DECISION, RISK, CONFIRMATION, deny } from './risk.js';
 import { PERMISSION, getToolMetadata, validateInput } from './permissions.js';
 import { resolveApp, validateProcessTarget, SENSITIVE_EXECUTABLES } from './app-policy.js';
 import { checkUrl, checkUrlForAgent } from './network-policy.js';
 import { checkWritePath, checkReadPath, checkDeletePath, checkFileName, checkIndexPath } from './path-policy.js';
+import { classifyCommand, COMMAND_DECISION } from './command-policy.js';
 import { documentsDir, desktopDir, homeDir } from '../lib/paths.js';
 import { auditEvent } from './audit.js';
 
@@ -124,6 +125,22 @@ function checkPermission(permission, args, tool) {
           if (!check.ok) return { reason: check.reason };
         }
       }
+      return null;
+    }
+
+    case PERMISSION.EXEC_COMMAND: {
+      // The command policy classifies the exact argv: DENY never runs, ALLOW
+      // (read-only verb, read-only arguments) runs without asking, anything
+      // else must be approved. The verdict is carried on the decision as the
+      // effective confirmation mode, so the caller obeys rather than decides.
+      const verdict = classifyCommand({ command: args.command, args: args.args });
+      if (verdict.decision === COMMAND_DECISION.DENY) return { reason: verdict.reason };
+      if (args.cwd !== undefined) {
+        const dir = checkReadPath(args.cwd);
+        if (!dir.ok) return { reason: `cwd: ${dir.reason}` };
+      }
+      args.__confirmation = verdict.decision === COMMAND_DECISION.CONFIRM ? CONFIRMATION.ALWAYS : CONFIRMATION.NONE;
+      args.__commandVerdict = verdict.decision;
       return null;
     }
 
@@ -256,7 +273,7 @@ export function authorize(request = {}) {
       risk: meta ? meta.risk : RISK.BLOCKED,
       decision: result.decision,
       reason: result.reason,
-      target: args.__targetPath || args.appName || args.url || args.query || null,
+      target: args.__targetPath || args.appName || args.url || args.query || args.command || null,
       outcome: 'authorized',
       durationMs: Date.now() - started,
       taskId
@@ -265,7 +282,7 @@ export function authorize(request = {}) {
       decision: result.decision,
       reason: result.reason || '',
       risk: meta ? meta.risk : RISK.BLOCKED,
-      confirmation: meta ? meta.confirmation : 'none',
+      confirmation: args.__confirmation || (meta ? meta.confirmation : 'none'),
       meta,
       clean: args.__clean || {},
       resolvedApp: args.__resolvedApp || null

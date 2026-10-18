@@ -87,8 +87,10 @@ async function processBatch(chat, messages, batch, batchIndex, actions, onEvent,
     // the skill executes the vetted target, never the raw model string.
     if (decision.resolvedApp) args.__resolvedApp = decision.resolvedApp;
 
-    // Destructive capabilities pause the loop for explicit user approval.
-    if (decision.meta && decision.meta.confirmation === 'always') {
+    // Destructive capabilities pause the loop for explicit user approval. The
+    // kernel may have downgraded the skill's default (a read-only command does
+    // not need approval), so the effective mode on the decision is what counts.
+    if (decision.confirmation === 'always') {
       const token = `confirm_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
       pendingConfirmations.set(token, { messages, batch, batchIndex: i, createdAt: Date.now(), signal });
       return {
@@ -173,6 +175,12 @@ function intentBooster(userText) {
   }
   if (isKnowledgeAsk) {
     return { role: 'system', content: 'Directive: the user is asking about their own indexed documents. Call search_knowledge with the topic, then answer using the returned passages and cite the file and line. If the index is empty or nothing matches, say so and offer to index the folder. Do not invent content.' };
+  }
+  // --- Run a command on this PC ---
+  const isRunCommand = /\b(run|execute)\s+(the\s+)?(command|cmd|terminal|shell)\b/.test(t)
+    || /\b(run|check|show)\s+(git\s+status|git\s+log|ipconfig|tasklist|systeminfo|npm\s+ls)\b/.test(t);
+  if (isRunCommand) {
+    return { role: 'system', content: 'Directive: the user wants a command run on this PC. Call run_command with "command" (a bare program name such as "git") and "args" as an array (e.g. ["status", "--short"]). Read-only commands run immediately; anything else asks Boss to approve first. Report the real output — never invent it.' };
   }
   return null;
 }

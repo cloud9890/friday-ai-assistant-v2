@@ -711,7 +711,8 @@ class FridayApp {
     send_notification: 'NOTIFY',
     index_folder: 'KNOWLEDGE INDEX',
     search_knowledge: 'KNOWLEDGE SEARCH',
-    ask_my_document: 'DOCUMENT Q&A'
+    ask_my_document: 'DOCUMENT Q&A',
+    run_command: 'COMMAND'
   };
 
   displayActions(actions) {

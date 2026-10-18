@@ -33,6 +33,7 @@ import send_notification from './send_notification.js';
 import index_folder from './index_folder.js';
 import search_knowledge from './search_knowledge.js';
 import ask_my_document from './ask_my_document.js';
+import run_command from './run_command.js';
 
 export default [
   open_desktop_app,
@@ -64,5 +65,6 @@ export default [
   send_notification,
   index_folder,
   search_knowledge,
-  ask_my_document
+  ask_my_document,
+  run_command
 ];
